@@ -1,0 +1,5 @@
+postgres:
+  connection_string: 'postgres://map_admin:map_secure_pass@localhost:5433/iran_map'
+
+fonts:
+  - 'fonts'
