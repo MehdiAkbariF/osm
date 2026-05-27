@@ -13,5 +13,18 @@ services:
       - ./data:/data
     restart: always
 
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: custom_nominatim
+    ports:
+      - "8080:8080" 
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+      - ./data:/data
+    environment:
+      - PBF_PATH=/data/iran-latest.osm.pbf 
+    restart: always
+
 volumes:
   postgres_data:
+  nominatim_data:

@@ -3,20 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نقشه اختصاصی ایران</title>
+    <title>نقشه حرفه‌ای و اختصاصی ایران به همراه جستجو</title>
+    <!-- MapLibre GL JS CSS -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: Tahoma, sans-serif; }
         #map { width: 100%; height: 100%; }
+
+        /* استایل اختصاصی نوار جستجوی شناور نقشه */
+        #search-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 8px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            width: 320px;
+        }
+        #search-row {
+            display: flex;
+            width: 100%;
+        }
+        #search-input {
+            flex-grow: 1;
+            padding: 10px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+            font-family: inherit;
+        }
+        #search-button {
+            padding: 10px 16px;
+            background: #ffa042;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            margin-right: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            font-family: inherit;
+            transition: background 0.2s;
+        }
+        #search-button:hover {
+            background: #e07a1b;
+        }
+        #search-results {
+            max-height: 220px;
+            overflow-y: auto;
+            margin-top: 6px;
+            background: white;
+            border-radius: 6px;
+        }
+        .result-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 12px;
+            color: #333;
+            text-align: right;
+            transition: background 0.2s;
+        }
+        .result-item:hover {
+            background: #f7f7f7;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
     </style>
 </head>
 <body>
+
+    <!-- باکس جستجوی شناور روی نقشه -->
+    <div id="search-container">
+        <div id="search-row">
+            <input type="text" id="search-input" placeholder="جستجوی شهر، خیابان یا مکان..." />
+            <button id="search-button">جستجو</button>
+        </div>
+        <div id="search-results"></div>
+    </div>
 
     <div id="map"></div>
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script>
-        // ۱. فعال‌سازی چسبندگی حروف فارسی و نگارش راست‌به‌چپ (بسیار مهم)
+        // فعال‌سازی موتور چسبندگی حروف فارسی
         maplibregl.setRTLTextPlugin(
             'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.js',
             null,
@@ -29,49 +105,143 @@
             zoom: 12,
             style: {
                 "version": 8,
-                "name": "Iran Custom Map",
-                "glyphs": "http://localhost:3000/fonts/{fontstack}/{range}",
-                "sources": {
-                    "iran_lines": {
-                        "type": "vector",
-                        "tiles": ["http://localhost:3000/planet_osm_line/{z}/{x}/{y}"]
-                    }
-                },
+                "name": "Advanced Iran Style",
+     "glyphs": "http://127.0.0.1:3000/fonts/{fontstack}/{range}",
+"sources": {
+    "iran_polygons": {
+        "type": "vector",
+        "tiles": ["http://127.0.0.1:3000/planet_osm_polygon/{z}/{x}/{y}"]
+    },
+    "iran_lines": {
+        "type": "vector",
+        "tiles": ["http://127.0.0.1:3000/planet_osm_line/{z}/{x}/{y}"]
+    },
+    "iran_points": {
+        "type": "vector",
+        "tiles": ["http://127.0.0.1:3000/planet_osm_point/{z}/{x}/{y}"]
+    }
+},
                 "layers": [
+                    // ۱. رنگ پایه خشکی‌ها
                     {
                         "id": "background",
                         "type": "background",
-                        "paint": { "background-color": "#f5f3f0" }
+                        "paint": { "background-color": "#f4f1ea" }
                     },
-                    // نمایش خیابان‌ها و اتوبان‌ها (فقط مواردی که تگ highway دارند جهت سرعت بیشتر)
+                    // ۲. نمایش بافت شهری و مناطق مسکونی (طوسی/بژ ملایم)
                     {
-                        "id": "roads",
+                        "id": "residential-areas",
+                        "type": "fill",
+                        "source": "iran_polygons",
+                        "source-layer": "planet_osm_polygon",
+                        "filter": ["==", "landuse", "residential"],
+                        "paint": { "fill-color": "#e5e0d8", "fill-opacity": 0.9 }
+                    },
+                    // ۳. نمایش پارک‌ها و فضاهای سبز (سبز ملایم)
+                    {
+                        "id": "parks-forests",
+                        "type": "fill",
+                        "source": "iran_polygons",
+                        "source-layer": "planet_osm_polygon",
+                        "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]],
+                        "paint": { "fill-color": "#d0e4cc" }
+                    },
+                    // ۴. نمایش دریاچه‌ها، رودخانه‌ها و آب‌ها (آبی ملایم)
+                    {
+                        "id": "water-bodies",
+                        "type": "fill",
+                        "source": "iran_polygons",
+                        "source-layer": "planet_osm_polygon",
+                        "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]],
+                        "paint": { "fill-color": "#aad3df" }
+                    },
+                    
+                    // ۵. بزرگراه‌ها و اتوبان‌ها - لایه تیره زیرین (Casing)
+                    {
+                        "id": "motorway-casing",
                         "type": "line",
                         "source": "iran_lines",
                         "source-layer": "planet_osm_line",
-                        "filter": ["has", "highway"], // فیلتر خطوط غیر جاده‌ای برای سبک شدن نقشه
-                        "paint": {
-                            "line-color": "#ffffff",
-                            "line-width": 2
-                        }
+                        "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
+                        "paint": { "line-color": "#e07a1b", "line-width": 4.5 }
                     },
-                    // رندر نام خیابان‌ها با فونت فارسی وزیر
+                    // ۶. بزرگراه‌ها و اتوبان‌ها - لایه روشن رویین (Core)
+                    {
+                        "id": "motorway-core",
+                        "type": "line",
+                        "source": "iran_lines",
+                        "source-layer": "planet_osm_line",
+                        "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
+                        "paint": { "line-color": "#ffa042", "line-width": 2.5 }
+                    },
+
+                    // ۷. جاده‌های اصلی شهری (زرد دوربُردار) - زیرین
+                    {
+                        "id": "primary-casing",
+                        "type": "line",
+                        "source": "iran_lines",
+                        "source-layer": "planet_osm_line",
+                        "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
+                        "paint": { "line-color": "#d6a100", "line-width": 3.5 }
+                    },
+                    // ۸. جاده‌های اصلی شهری - رویین
+                    {
+                        "id": "primary-core",
+                        "type": "line",
+                        "source": "iran_lines",
+                        "source-layer": "planet_osm_line",
+                        "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
+                        "paint": { "line-color": "#ffe082", "line-width": 2 }
+                    },
+
+                    // ۹. خیابان‌های فرعی و کوچه‌ها (خطوط سفید باریک)
+                    {
+                        "id": "minor-roads",
+                        "type": "line",
+                        "source": "iran_lines",
+                        "source-layer": "planet_osm_line",
+                        "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]],
+                        "paint": { "line-color": "#ffffff", "line-width": 1.2 }
+                    },
+
+                    // ۱۰. برچسب نام جاده‌ها و اتوبان‌ها با فونت وزیر
                     {
                         "id": "road-labels",
                         "type": "symbol",
                         "source": "iran_lines",
                         "source-layer": "planet_osm_line",
-                        "filter": ["has", "name"], // فقط جاده‌هایی که نام دارند
+                        "filter": ["all", ["has", "name"], ["has", "highway"]],
                         "layout": {
                             "text-field": ["get", "name"],
-                            "text-font": ["Vazirmatn Thin"], // لود مستقیم فونت فارسی شما
+                            "text-font": ["Vazirmatn Thin", "Arial Regular"], // اعمال فونت زاپاس
                             "text-size": 11,
                             "symbol-placement": "line"
                         },
                         "paint": {
-                            "text-color": "#222222",
+                            "text-color": "#2c2c2c",
                             "text-halo-color": "#ffffff",
                             "text-halo-width": 1.5
+                        }
+                    },
+
+                    // ۱۱. برچسب نام محله‌ها، میدان‌ها و نقاط مهم (نقاط POI)
+                    {
+                        "id": "poi-labels",
+                        "type": "symbol",
+                        "source": "iran_points",
+                        "source-layer": "planet_osm_point",
+                        "filter": ["has", "name"],
+                        "layout": {
+                            "text-field": ["get", "name"],
+                            "text-font": ["Vazirmatn Thin", "Arial Regular"], // اعمال فونت زاپاس
+                            "text-size": 11,
+                            "symbol-placement": "point",
+                            "text-padding": 10 // جلوگیری از هم‌پوشانی تداخل برچسب‌ها
+                        },
+                        "paint": {
+                            "text-color": "#d32f2f", 
+                            "text-halo-color": "#ffffff",
+                            "text-halo-width": 2
                         }
                     }
                 ]
@@ -79,6 +249,82 @@
         });
 
         map.addControl(new maplibregl.NavigationControl());
+
+        // ==========================================
+        // لایه منطق موتور جستجو (اتصال به Nominatim)
+        // ==========================================
+        let searchMarker = null; // متغیر ذخیره نشانه روی نقشه
+
+        // عملکرد کلیک روی دکمه جستجو
+        document.getElementById('search-button').addEventListener('click', executeSearch);
+
+        // اجرای جستجو در صورت فشردن دکمه Enter روی کیبورد
+        document.getElementById('search-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                executeSearch();
+            }
+        });
+
+        async function executeSearch() {
+            const query = document.getElementById('search-input').value.trim();
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = ''; // پاک کردن نتایج قبلی
+
+            if (!query) return;
+
+            resultsContainer.innerHTML = '<div class="result-item">در حال جستجو...</div>';
+
+            try {
+                // ارسال درخواست به سرور محلی Nominatim شما
+                const response = await fetch(`http://localhost:8080/search?q=${encodeURIComponent(query)}&format=json`);
+                const data = await response.json();
+
+                displaySearchResults(data);
+            } catch (error) {
+                console.error("اتصال به سرور جستجو برقرار نشد:", error);
+                resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به سرور جستجو!</div>';
+            }
+        }
+
+        function displaySearchResults(results) {
+            const resultsContainer = document.getElementById('search-results');
+            resultsContainer.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<div class="result-item">مکانی با این مشخصات یافت نشد.</div>';
+                return;
+            }
+
+            // نمایش نتایج پیدا شده در باکس نتایج
+            results.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'result-item';
+                div.innerText = item.display_name;
+
+                // ثبت کلیک روی هر نتیجه
+                div.onclick = () => {
+                    const lat = parseFloat(item.lat);
+                    const lon = parseFloat(item.lon);
+
+                    // حرکت روان نقشه به لوکیشن مورد نظر
+                    map.flyTo({
+                        center: [lon, lat],
+                        zoom: 15,
+                        essential: true
+                    });
+
+                    // گذاشتن پین قرمز رنگ روی نقطه پیداشده
+                    if (searchMarker) searchMarker.remove(); // حذف پین قبلی
+                    searchMarker = new maplibregl.Marker({ color: '#d32f2f' })
+                        .setLngLat([lon, lat])
+                        .addTo(map);
+
+                    resultsContainer.innerHTML = ''; // پنهان کردن باکس نتایج پس از انتخاب
+                };
+
+                resultsContainer.appendChild(div);
+            });
+        }
     </script>
 </body>
 </html>
