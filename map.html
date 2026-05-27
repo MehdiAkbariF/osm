@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نقشه حرفه‌ای و اختصاصی ایران به همراه جستجو</title>
+    <title>نقشه اختصاصی ایران (جستجو، مسیریابی و آدرس دقیق)</title>
     <!-- MapLibre GL JS CSS -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: Tahoma, sans-serif; }
         #map { width: 100%; height: 100%; }
 
-        /* استایل اختصاصی نوار جستجوی شناور نقشه */
+        /* نوار جستجوی شناور */
         #search-container {
             position: absolute;
             top: 20px;
@@ -24,10 +24,7 @@
             flex-direction: column;
             width: 320px;
         }
-        #search-row {
-            display: flex;
-            width: 100%;
-        }
+        #search-row { display: flex; width: 100%; }
         #search-input {
             flex-grow: 1;
             padding: 10px 12px;
@@ -48,44 +45,92 @@
             font-size: 13px;
             font-weight: bold;
             font-family: inherit;
-            transition: background 0.2s;
         }
-        #search-button:hover {
-            background: #e07a1b;
-        }
-        #search-results {
-            max-height: 220px;
-            overflow-y: auto;
-            margin-top: 6px;
-            background: white;
-            border-radius: 6px;
-        }
-        .result-item {
-            padding: 10px 12px;
-            cursor: pointer;
-            border-bottom: 1px solid #f0f0f0;
+        #search-button:hover { background: #e07a1b; }
+        #search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; background: white; border-radius: 6px; }
+        
+        /* باکس راهنمای مسیریابی */
+        #info-box {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 8px;
             font-size: 12px;
-            color: #333;
+            line-height: 1.6;
+            max-width: 280px;
+            pointer-events: none;
+        }
+
+        /* باکس نمایش آدرس دقیق نقطه کلیک شده */
+        #address-box {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.85);
+            color: #ffa042;
+            padding: 12px 18px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.6;
+            max-width: 350px;
+            font-family: monospace;
+            direction: ltr;
+            text-align: left;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            border-right: 3px solid #ffa042;
+        }
+
+        #address-box strong {
+            color: white;
+            display: block;
+            margin-bottom: 6px;
+            font-family: Tahoma, sans-serif;
+            direction: rtl;
             text-align: right;
-            transition: background 0.2s;
         }
-        .result-item:hover {
-            background: #f7f7f7;
-        }
-        .result-item:last-child {
-            border-bottom: none;
+
+        .result-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; font-size: 12px; text-align: right; }
+        .result-item:hover { background: #f7f7f7; }
+        .address-coord {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 4px;
+            direction: ltr;
+            text-align: left;
         }
     </style>
 </head>
 <body>
 
-    <!-- باکس جستجوی شناور روی نقشه -->
+    <!-- باکس جستجو -->
     <div id="search-container">
         <div id="search-row">
-            <input type="text" id="search-input" placeholder="جستجوی شهر، خیابان یا مکان..." />
+            <input type="text" id="search-input" placeholder="جستجوی مکان..." />
             <button id="search-button">جستجو</button>
         </div>
         <div id="search-results"></div>
+    </div>
+
+    <!-- باکس راهنمای مسیریابی در گوشه نقشه -->
+    <div id="info-box">
+        <b>راهنمای مسیریابی بومی:</b><br/>
+        ۱. روی نقشه کلیک کنید تا <b>مبدا (سبز)</b> ثبت شود.<br/>
+        ۲. نقطه دوم را کلیک کنید تا <b>مقصد (قرمز)</b> ثبت و مسیر رسم شود.<br/>
+        ۳. با کلیک سوم نقشه پاک شده و آماده مسیر جدید می‌شود.<br/>
+        <span style="color:#ffa042;">✨ برای دیدن آدرس دقیق هر نقطه، کافی است کلیک راست کنید.</span>
+    </div>
+
+    <!-- باکس نمایش آدرس دقیق نقطه کلیک راست شده -->
+    <div id="address-box" style="display: none;">
+        <strong>📍 آدرس دقیق مکان کلیک شده:</strong>
+        <span id="address-text">در حال دریافت آدرس...</span>
+        <div id="address-coords" class="address-coord"></div>
     </div>
 
     <div id="map"></div>
@@ -106,29 +151,27 @@
             style: {
                 "version": 8,
                 "name": "Advanced Iran Style",
-     "glyphs": "http://127.0.0.1:3000/fonts/{fontstack}/{range}",
-"sources": {
-    "iran_polygons": {
-        "type": "vector",
-        "tiles": ["http://127.0.0.1:3000/planet_osm_polygon/{z}/{x}/{y}"]
-    },
-    "iran_lines": {
-        "type": "vector",
-        "tiles": ["http://127.0.0.1:3000/planet_osm_line/{z}/{x}/{y}"]
-    },
-    "iran_points": {
-        "type": "vector",
-        "tiles": ["http://127.0.0.1:3000/planet_osm_point/{z}/{x}/{y}"]
-    }
-},
+                "glyphs": "http://127.0.0.1:3000/fonts/{fontstack}/{range}",
+                "sources": {
+                    "iran_polygons": {
+                        "type": "vector",
+                        "tiles": ["http://127.0.0.1:3000/planet_osm_polygon/{z}/{x}/{y}"]
+                    },
+                    "iran_lines": {
+                        "type": "vector",
+                        "tiles": ["http://127.0.0.1:3000/planet_osm_line/{z}/{x}/{y}"]
+                    },
+                    "iran_points": {
+                        "type": "vector",
+                        "tiles": ["http://127.0.0.1:3000/planet_osm_point/{z}/{x}/{y}"]
+                    }
+                },
                 "layers": [
-                    // ۱. رنگ پایه خشکی‌ها
                     {
                         "id": "background",
                         "type": "background",
                         "paint": { "background-color": "#f4f1ea" }
                     },
-                    // ۲. نمایش بافت شهری و مناطق مسکونی (طوسی/بژ ملایم)
                     {
                         "id": "residential-areas",
                         "type": "fill",
@@ -137,7 +180,6 @@
                         "filter": ["==", "landuse", "residential"],
                         "paint": { "fill-color": "#e5e0d8", "fill-opacity": 0.9 }
                     },
-                    // ۳. نمایش پارک‌ها و فضاهای سبز (سبز ملایم)
                     {
                         "id": "parks-forests",
                         "type": "fill",
@@ -146,7 +188,6 @@
                         "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]],
                         "paint": { "fill-color": "#d0e4cc" }
                     },
-                    // ۴. نمایش دریاچه‌ها، رودخانه‌ها و آب‌ها (آبی ملایم)
                     {
                         "id": "water-bodies",
                         "type": "fill",
@@ -155,8 +196,6 @@
                         "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]],
                         "paint": { "fill-color": "#aad3df" }
                     },
-                    
-                    // ۵. بزرگراه‌ها و اتوبان‌ها - لایه تیره زیرین (Casing)
                     {
                         "id": "motorway-casing",
                         "type": "line",
@@ -165,7 +204,6 @@
                         "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
                         "paint": { "line-color": "#e07a1b", "line-width": 4.5 }
                     },
-                    // ۶. بزرگراه‌ها و اتوبان‌ها - لایه روشن رویین (Core)
                     {
                         "id": "motorway-core",
                         "type": "line",
@@ -174,8 +212,6 @@
                         "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
                         "paint": { "line-color": "#ffa042", "line-width": 2.5 }
                     },
-
-                    // ۷. جاده‌های اصلی شهری (زرد دوربُردار) - زیرین
                     {
                         "id": "primary-casing",
                         "type": "line",
@@ -184,7 +220,6 @@
                         "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
                         "paint": { "line-color": "#d6a100", "line-width": 3.5 }
                     },
-                    // ۸. جاده‌های اصلی شهری - رویین
                     {
                         "id": "primary-core",
                         "type": "line",
@@ -193,8 +228,6 @@
                         "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
                         "paint": { "line-color": "#ffe082", "line-width": 2 }
                     },
-
-                    // ۹. خیابان‌های فرعی و کوچه‌ها (خطوط سفید باریک)
                     {
                         "id": "minor-roads",
                         "type": "line",
@@ -203,8 +236,6 @@
                         "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]],
                         "paint": { "line-color": "#ffffff", "line-width": 1.2 }
                     },
-
-                    // ۱۰. برچسب نام جاده‌ها و اتوبان‌ها با فونت وزیر
                     {
                         "id": "road-labels",
                         "type": "symbol",
@@ -213,7 +244,7 @@
                         "filter": ["all", ["has", "name"], ["has", "highway"]],
                         "layout": {
                             "text-field": ["get", "name"],
-                            "text-font": ["Vazirmatn Thin", "Arial Regular"], // اعمال فونت زاپاس
+                            "text-font": ["Vazirmatn Thin", "Arial Regular"],
                             "text-size": 11,
                             "symbol-placement": "line"
                         },
@@ -223,8 +254,6 @@
                             "text-halo-width": 1.5
                         }
                     },
-
-                    // ۱۱. برچسب نام محله‌ها، میدان‌ها و نقاط مهم (نقاط POI)
                     {
                         "id": "poi-labels",
                         "type": "symbol",
@@ -233,10 +262,10 @@
                         "filter": ["has", "name"],
                         "layout": {
                             "text-field": ["get", "name"],
-                            "text-font": ["Vazirmatn Thin", "Arial Regular"], // اعمال فونت زاپاس
+                            "text-font": ["Vazirmatn Thin", "Arial Regular"],
                             "text-size": 11,
                             "symbol-placement": "point",
-                            "text-padding": 10 // جلوگیری از هم‌پوشانی تداخل برچسب‌ها
+                            "text-padding": 10
                         },
                         "paint": {
                             "text-color": "#d32f2f", 
@@ -251,37 +280,28 @@
         map.addControl(new maplibregl.NavigationControl());
 
         // ==========================================
-        // لایه منطق موتور جستجو (اتصال به Nominatim)
+        // بخش اول: منطق موتور جستجو (Nominatim)
         // ==========================================
-        let searchMarker = null; // متغیر ذخیره نشانه روی نقشه
-
-        // عملکرد کلیک روی دکمه جستجو
+        let searchMarker = null;
         document.getElementById('search-button').addEventListener('click', executeSearch);
-
-        // اجرای جستجو در صورت فشردن دکمه Enter روی کیبورد
         document.getElementById('search-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                executeSearch();
-            }
+            if (e.key === 'Enter') executeSearch();
         });
 
         async function executeSearch() {
             const query = document.getElementById('search-input').value.trim();
             const resultsContainer = document.getElementById('search-results');
-            resultsContainer.innerHTML = ''; // پاک کردن نتایج قبلی
-
+            resultsContainer.innerHTML = '';
             if (!query) return;
 
             resultsContainer.innerHTML = '<div class="result-item">در حال جستجو...</div>';
 
             try {
-                // ارسال درخواست به سرور محلی Nominatim شما
-                const response = await fetch(`http://localhost:8080/search?q=${encodeURIComponent(query)}&format=json`);
+                const response = await fetch(`http://127.0.0.1:8080/search?q=${encodeURIComponent(query)}&format=json`);
                 const data = await response.json();
-
                 displaySearchResults(data);
             } catch (error) {
-                console.error("اتصال به سرور جستجو برقرار نشد:", error);
+                console.error("خطا در جستجو:", error);
                 resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به سرور جستجو!</div>';
             }
         }
@@ -289,42 +309,209 @@
         function displaySearchResults(results) {
             const resultsContainer = document.getElementById('search-results');
             resultsContainer.innerHTML = '';
-
             if (results.length === 0) {
-                resultsContainer.innerHTML = '<div class="result-item">مکانی با این مشخصات یافت نشد.</div>';
+                resultsContainer.innerHTML = '<div class="result-item">مکان یافت نشد.</div>';
                 return;
             }
-
-            // نمایش نتایج پیدا شده در باکس نتایج
             results.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'result-item';
                 div.innerText = item.display_name;
-
-                // ثبت کلیک روی هر نتیجه
                 div.onclick = () => {
                     const lat = parseFloat(item.lat);
                     const lon = parseFloat(item.lon);
-
-                    // حرکت روان نقشه به لوکیشن مورد نظر
-                    map.flyTo({
-                        center: [lon, lat],
-                        zoom: 15,
-                        essential: true
-                    });
-
-                    // گذاشتن پین قرمز رنگ روی نقطه پیداشده
-                    if (searchMarker) searchMarker.remove(); // حذف پین قبلی
-                    searchMarker = new maplibregl.Marker({ color: '#d32f2f' })
-                        .setLngLat([lon, lat])
-                        .addTo(map);
-
-                    resultsContainer.innerHTML = ''; // پنهان کردن باکس نتایج پس از انتخاب
+                    map.flyTo({ center: [lon, lat], zoom: 15, essential: true });
+                    if (searchMarker) searchMarker.remove();
+                    searchMarker = new maplibregl.Marker({ color: '#ffa042' }).setLngLat([lon, lat]).addTo(map);
+                    resultsContainer.innerHTML = '';
                 };
-
                 resultsContainer.appendChild(div);
             });
         }
+
+        // ==========================================
+        // بخش دوم: منطق موتور مسیریابی زنده (OSRM)
+        // ==========================================
+        let startCoords = null;
+        let endCoords = null;
+        let startMarker = null;
+        let endMarker = null;
+
+        // شنود کلیک روی نقشه برای تعیین مبدا و مقصد
+        map.on('click', async (e) => {
+            const coords = [e.lngLat.lng, e.lngLat.lat];
+
+            if (!startCoords) {
+                // ثبت مبدا (پین سبز)
+                startCoords = coords;
+                startMarker = new maplibregl.Marker({ color: '#2e7d32' }) // سبز
+                    .setLngLat(startCoords)
+                    .addTo(map);
+            } else if (!endCoords) {
+                // ثبت مقصد (پین قرمز)
+                endCoords = coords;
+                endMarker = new maplibregl.Marker({ color: '#d32f2f' }) // قرمز
+                    .setLngLat(endCoords)
+                    .addTo(map);
+
+                // استعلام زنده مسیر از OSRM اختصاصی شما
+                calculateRoute(startCoords, endCoords);
+            } else {
+                // پاک‌کردن مسیر قبلی برای ثبت مسیر جدید
+                resetRouting();
+                startCoords = coords;
+                startMarker = new maplibregl.Marker({ color: '#2e7d32' })
+                    .setLngLat(startCoords)
+                    .addTo(map);
+            }
+        });
+
+        async function calculateRoute(start, end) {
+            // ساخت آدرس درخواست API مسیریابی OSRM روی پورت 5000
+            const url = `http://127.0.0.1:5000/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.code !== 'Ok') {
+                    alert('مسیر جاده‌ای پیدا نشد!');
+                    return;
+                }
+
+                const routeGeometry = data.routes[0].geometry; // دریافت مختصات خط هندسی مسیر
+
+                // ترسیم یا بروزرسانی خط آبی مسیر روی نقشه
+                if (map.getSource('route')) {
+                    map.getSource('route').setData(routeGeometry);
+                } else {
+                    map.addSource('route', {
+                        'type': 'geojson',
+                        'data': routeGeometry
+                    });
+
+                    map.addLayer({
+                        'id': 'route-line',
+                        'type': 'line',
+                        'source': 'route',
+                        'layout': {
+                            'line-join': 'round',
+                            'line-cap': 'round'
+                        },
+                        'paint': {
+                            'line-color': '#0288d1', // رنگ آبی رسمی مسیر
+                            'line-width': 6,
+                            'line-opacity': 0.85
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error("خطا در ارتباط با سرور مسیریابی:", error);
+                alert("امکان ارتباط با سرور مسیریابی وجود ندارد!");
+            }
+        }
+
+        function resetRouting() {
+            startCoords = null;
+            endCoords = null;
+            if (startMarker) startMarker.remove();
+            if (endMarker) endMarker.remove();
+            if (map.getLayer('route-line')) map.removeLayer('route-line');
+            if (map.getSource('route')) map.removeSource('route');
+        }
+
+        // ==========================================
+        // بخش سوم: نمایش آدرس دقیق نقطه کلیک راست شده (Reverse Geocoding)
+        // ==========================================
+        const addressBox = document.getElementById('address-box');
+        const addressText = document.getElementById('address-text');
+        const addressCoords = document.getElementById('address-coords');
+
+        // شنود رویداد کلیک راست روی نقشه (contextmenu)
+        map.on('contextmenu', async (e) => {
+            // جلوگیری از باز شدن منوی پیش‌فرض مرورگر
+            e.preventDefault();
+            
+            const lng = e.lngLat.lng;
+            const lat = e.lngLat.lat;
+            
+            // نمایش باکس در حال بارگذاری
+            addressBox.style.display = 'block';
+            addressText.innerHTML = 'در حال دریافت آدرس...';
+            addressCoords.innerHTML = `مختصات: ${lng.toFixed(6)} , ${lat.toFixed(6)}`;
+            
+            // درخواست به Nominatim برای دریافت آدرس معکوس
+            // limit=1 و zoom=18 برای دقت بیشتر در جزییات
+        const reverseUrl = `http://127.0.0.1:8080/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=fa`;
+            
+            try {
+                const response = await fetch(reverseUrl);
+                const data = await response.json();
+                
+                if (data && data.display_name) {
+                    // نمایش آدرس کامل به زبان فارسی (اگر موجود باشد)
+                    addressText.innerHTML = data.display_name;
+                    
+                    // اضافه کردن اطلاعات بیشتر مثل خیابان، محله، شهر در صورت وجود
+                    let extraInfo = '';
+                    if (data.address) {
+                        const addr = data.address;
+                        if (addr.road) extraInfo += ` | خیابان: ${addr.road}`;
+                        if (addr.neighbourhood) extraInfo += ` | محله: ${addr.neighbourhood}`;
+                        if (addr.suburb) extraInfo += ` | منطقه: ${addr.suburb}`;
+                        if (addr.city) extraInfo += ` | شهر: ${addr.city}`;
+                        if (addr.state) extraInfo += ` | استان: ${addr.state}`;
+                        if (extraInfo) {
+                            const extraSpan = document.createElement('div');
+                            extraSpan.style.fontSize = '10px';
+                            extraSpan.style.color = '#ccc';
+                            extraSpan.style.marginTop = '4px';
+                            extraSpan.style.direction = 'rtl';
+                            extraSpan.style.textAlign = 'right';
+                            extraSpan.innerHTML = extraInfo;
+                            addressBox.appendChild(extraSpan);
+                            // حذف خودکار بعد از 5 ثانیه یا در کلیک بعدی پاک می‌شود
+                            setTimeout(() => {
+                                if (extraSpan && extraSpan.remove) extraSpan.remove();
+                            }, 8000);
+                        }
+                    }
+                } else {
+                    addressText.innerHTML = 'آدرسی برای این نقطه یافت نشد.';
+                }
+            } catch (error) {
+                console.error('خطا در دریافت آدرس معکوس:', error);
+                addressText.innerHTML = 'خطا در ارتباط با سرور آدرس‌یابی.';
+            }
+            
+            // پس از 8 ثانیه باکس آدرس را مخفی کن (اختیاری)
+            setTimeout(() => {
+                if (addressBox.style.display === 'block') {
+                    // فقط در صورتی مخفی کن که باکس هنوز باز است و موس روی آن نیست
+                    addressBox.style.display = 'none';
+                }
+            }, 10000);
+        });
+        
+        // وقتی موس روی باکس آدرس رفت، آن را مخفی نکن
+        addressBox.addEventListener('mouseenter', () => {
+            // می‌توانید تایمر را ریست کنید، اما فعلا مهم نیست
+        });
+        
+        // کلیک روی دکمه بستن اختیاری برای باکس آدرس (یک ضربدر ساده اضافه می‌کنیم)
+        const closeBtn = document.createElement('span');
+        closeBtn.innerHTML = '✕';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.top = '5px';
+        closeBtn.style.left = '10px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.style.fontSize = '14px';
+        closeBtn.style.color = '#ffa042';
+        closeBtn.style.fontWeight = 'bold';
+        closeBtn.onclick = () => {
+            addressBox.style.display = 'none';
+        };
+        addressBox.appendChild(closeBtn);
     </script>
 </body>
 </html>

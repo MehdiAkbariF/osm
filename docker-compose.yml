@@ -23,7 +23,9 @@ services:
       - ./data:/data
     environment:
       - PBF_PATH=/data/iran-latest.osm.pbf 
+      - NOMINATIM_DEFAULT_LANGUAGE=fa
     restart: always
+
 
 volumes:
   postgres_data:
