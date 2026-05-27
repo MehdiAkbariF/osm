@@ -1,0 +1,17 @@
+services:
+  gis-db:
+    image: postgis/postgis:16-3.4
+    container_name: custom_map_db
+    environment:
+      - POSTGRES_USER=map_admin
+      - POSTGRES_PASSWORD=map_secure_pass
+      - POSTGRES_DB=iran_map
+    ports:
+      - "5433:5432" # تغییر پورت بیرونی به 5433 جهت رفع تداخل در ویندوز
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./data:/data
+    restart: always
+
+volumes:
+  postgres_data:

@@ -1,0 +1,13 @@
+# Docker database volume (if stored locally)
+postgres_data/
+
+# Raw map data files
+data/*.osm.pbf
+
+# Executables and builds
+martin/martin.exe
+osm2pgsql/
+
+# OS generated files
+.DS_Store
+Thumbs.db
