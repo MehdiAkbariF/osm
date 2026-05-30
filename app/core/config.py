@@ -9,12 +9,14 @@ class Settings(BaseSettings):
     # آدرس سرویس‌های نقشه (که از فایل .env خوانده می‌شوند)
     NOMINATIM_URL: str
     OSRM_URL: str
+    POSTGRES_URL: str
+    MARTIN_URL: str
 
     # تنظیمات نحوه خواندن فایل .env
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        extra="ignore" # نادیده گرفتن متغیرهای اضافه دیگر در سیستم‌عامل
+        extra="ignore"
     )
 
 # ایجاد یک شیء (Object) یکتا از کلاس تنظیمات برای استفاده در کل پلتفرم

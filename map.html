@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نقشه اختصاصی ایران - آدرس‌دهی هوشمند</title>
+    <title>نقشه اختصاصی ایران - آدرس‌دهی و فیلتر هوشمند مکان‌ها</title>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: Tahoma, sans-serif; }
@@ -60,17 +60,40 @@
             font-weight: bold;
             transition: all 0.2s;
         }
-        .mode-btn.active {
-            background: #ffa042;
-            color: white;
+        .mode-btn.active { background: #ffa042; color: white; }
+        .mode-btn:not(.active) { background: #f0f0f0; color: #333; }
+        .mode-btn:not(.active):hover { background: #e0e0e0; }
+
+        /* نوار فیلتر سریع مکان‌ها (POI) در بالای نقشه */
+        #category-filter-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            display: flex;
+            gap: 6px;
+            background: white;
+            padding: 6px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
         }
-        .mode-btn:not(.active) {
-            background: #f0f0f0;
-            color: #333;
+        .cat-btn {
+            padding: 8px 14px;
+            border: 1px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
         }
-        .mode-btn:not(.active):hover {
-            background: #e0e0e0;
-        }
+        .cat-btn:hover { background: #ffa042; color: white; border-color: #ffa042; }
+        .cat-btn.active { background: #ffa042; color: white; border-color: #ffa042; }
         
         #search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; background: white; border-radius: 6px; }
         
@@ -107,50 +130,15 @@
             box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
-        #address-box strong {
-            color: #ffa042;
-            display: block;
-            margin-bottom: 8px;
-            font-size: 13px;
-        }
-
-        #address-text {
-            color: #fff;
-            line-height: 1.6;
-            font-size: 12px;
-            display: block;
-        }
-        
-        .address-coord {
-            font-size: 10px;
-            color: #aaa;
-            margin-top: 8px;
-            padding-top: 6px;
-            border-top: 1px solid rgba(255,255,255,0.2);
-            direction: ltr;
-            text-align: left;
-        }
-        
-        .close-address {
-            position: absolute;
-            top: 8px;
-            left: 12px;
-            cursor: pointer;
-            font-size: 16px;
-            color: #aaa;
-            transition: color 0.2s;
-        }
-        .close-address:hover {
-            color: #ffa042;
-        }
+        #address-box strong { color: #ffa042; display: block; margin-bottom: 8px; font-size: 13px; }
+        #address-text { color: #fff; line-height: 1.6; font-size: 12px; display: block; }
+        .address-coord { font-size: 10px; color: #aaa; margin-top: 8px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.2); direction: ltr; text-align: left; }
+        .close-address { position: absolute; top: 8px; left: 12px; cursor: pointer; font-size: 16px; color: #aaa; transition: color 0.2s; }
+        .close-address:hover { color: #ffa042; }
 
         .result-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; font-size: 12px; text-align: right; }
         .result-item:hover { background: #f7f7f7; }
-        .result-distance {
-            font-size: 10px;
-            color: #ffa042;
-            margin-right: 8px;
-        }
+        .result-distance { font-size: 10px; color: #ffa042; margin-right: 8px; }
         
         #route-panel {
             position: absolute;
@@ -167,10 +155,20 @@
             border-right: 4px solid #ffa042;
             pointer-events: auto;
         }
+
+        .maplibregl-popup-content {
+            font-family: Tahoma, sans-serif;
+            font-size: 11px;
+            direction: rtl;
+            text-align: right;
+            border-radius: 6px;
+            padding: 10px 15px;
+        }
     </style>
 </head>
 <body>
 
+    <!-- باکس جستجوی چندحالته -->
     <div id="search-container">
         <div id="search-row">
             <input type="text" id="search-input" placeholder="جستجوی مکان..." />
@@ -181,6 +179,14 @@
             <button id="mode-global-btn" class="mode-btn">🌍 جستجو در کل ایران</button>
         </div>
         <div id="search-results"></div>
+    </div>
+
+    <!-- نوار فیلتر سریع مکان‌ها (POI) در بالای نقشه -->
+    <div id="category-filter-container">
+        <button class="cat-btn" data-category="fuel">⛽ پمپ بنزین</button>
+        <button class="cat-btn" data-category="atm">🏧 عابر بانک</button>
+        <button class="cat-btn" data-category="hospital">🏥 بیمارستان</button>
+        <button class="cat-btn" data-category="restaurant">🍔 رستوران</button>
     </div>
 
     <div id="info-box">
@@ -214,19 +220,19 @@
             style: {
                 "version": 8,
                 "name": "Advanced Iran Style",
-                "glyphs": "http://127.0.0.1:3000/fonts/{fontstack}/{range}",
+                "glyphs": "http://127.0.0.1:3000/font/{fontstack}/{range}",
                 "sources": {
                     "iran_polygons": {
                         "type": "vector",
-                        "tiles": ["http://127.0.0.1:3000/planet_osm_polygon/{z}/{x}/{y}"]
+                        "tiles": ["http://127.0.0.1:8000/api/v1/tiles/planet_osm_polygon/{z}/{x}/{y}"]
                     },
                     "iran_lines": {
                         "type": "vector",
-                        "tiles": ["http://127.0.0.1:3000/planet_osm_line/{z}/{x}/{y}"]
+                        "tiles": ["http://127.0.0.1:8000/api/v1/tiles/planet_osm_line/{z}/{x}/{y}"]
                     },
                     "iran_points": {
                         "type": "vector",
-                        "tiles": ["http://127.0.0.1:3000/planet_osm_point/{z}/{x}/{y}"]
+                        "tiles": ["http://127.0.0.1:8000/api/v1/tiles/planet_osm_point/{z}/{x}/{y}"]
                     }
                 },
                 "layers": [
@@ -248,62 +254,38 @@
         map.addControl(new maplibregl.NavigationControl());
 
         // ==========================================
-        // توابع آدرس‌دهی هوشمند
+        // توابع کمکی آدرس‌دهی هوشمند (ویژه باکس جستجو)
         // ==========================================
-        
-        // تابع تمیز کردن نام منطقه
         function cleanSuburb(suburb) {
             if (!suburb) return '';
             return suburb.replace(' شهر تهران', '').replace('منطقه ', 'منطقهٔ ');
         }
 
-        // تابع ساخت آدرس تمیز از داده Nominatim
         function buildCleanAddress(addressData) {
             if (!addressData || !addressData.address) {
                 return addressData?.display_name || 'آدرسی یافت نشد';
             }
-            
             const addr = addressData.address;
             const parts = [];
-            
-            // 1. استان
-            if (addr.state) parts.push(addr.state);
-            
-            // 2. شهرستان
+            if (addr.state) parts.push(addr.state); 
             if (addr.county && addr.county !== addr.state) parts.push(addr.county);
-            
-            // 3. شهر
             if (addr.city && addr.city !== addr.county) parts.push(addr.city);
-            
-            // 4. منطقه (تمیز شده)
             if (addr.suburb) {
                 const clean = cleanSuburb(addr.suburb);
                 if (clean && !parts.includes(clean)) parts.push(clean);
             }
+            if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) parts.push(addr.neighbourhood);
+            if (addr.road && !parts.includes(addr.road)) parts.push(addr.road);
             
-            // 5. محله
-            if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) {
-                parts.push(addr.neighbourhood);
-            }
-            
-            // 6. خیابان اصلی (مقصد)
-            if (addr.road && !parts.includes(addr.road)) {
-                parts.push(addr.road);
-            }
-            
-            // حذف موارد تکراری و خالی
             const finalParts = [];
             for (const part of parts) {
-                if (part && part !== '' && !finalParts.includes(part)) {
-                    finalParts.push(part);
-                }
+                if (part && part !== '' && !finalParts.includes(part)) finalParts.push(part);
             }
-            
             return finalParts.join('، ');
         }
 
         // ==========================================
-        // جستجو (Nominatim)
+        // لایه منطق موتور جستجوی چندحالته متصل به پایتون ( FastAPI - پورت 8000 )
         // ==========================================
         let searchMarker = null;
         let currentSearchMode = 'viewport';
@@ -323,24 +305,31 @@
             const query = document.getElementById('search-input').value.trim();
             const resultsContainer = document.getElementById('search-results');
             if (!query) { resultsContainer.innerHTML = ''; return; }
+            
             resultsContainer.innerHTML = '<div class="result-item">در حال جستجو...</div>';
+            
             try {
-                let url = `http://127.0.0.1:8080/search?q=${encodeURIComponent(query)}&format=json&accept-language=fa&limit=20`;
+                let url = `http://127.0.0.1:8000/api/v1/search?q=${encodeURIComponent(query)}`;
+                
                 if (currentSearchMode === 'viewport') {
                     const bounds = map.getBounds();
-                    const viewbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-                    url += `&viewbox=${viewbox}&bounded=1`;
+                    const viewbox = `${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()}`;
+                    url += `&mode=viewport&viewbox=${viewbox}`;
+                } else {
+                    url += `&mode=global`;
                 }
+
                 const response = await fetch(url);
                 const data = await response.json();
                 displaySearchResults(data);
+                
                 if (data.length === 0) {
                     const modeText = currentSearchMode === 'viewport' ? 'محدوده دید' : 'کل ایران';
                     resultsContainer.innerHTML = `<div class="result-item">مکانی برای "${query}" در ${modeText} یافت نشد.</div>`;
                 }
             } catch (error) {
                 console.error("خطا در جستجو:", error);
-                resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به سرور جستجو!</div>';
+                resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به پلاتفرم اختصاصی نقشه!</div>';
             }
         }
 
@@ -510,7 +499,7 @@
         });
 
         // ==========================================
-        // آدرس کلیک راست (نسخه نهایی ساده)
+        // آدرس کلیک راست (متصل به پلتفرم پایتون - پورت 8000)
         // ==========================================
         const addressBox = document.getElementById('address-box');
         const addressText = document.getElementById('address-text');
@@ -526,29 +515,98 @@
             addressCoords.innerHTML = `مختصات: ${lng.toFixed(6)} , ${lat.toFixed(6)}`;
             
             try {
-                // دریافت آدرس از Nominatim
-                const reverseUrl = `http://127.0.0.1:8080/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=fa`;
+                const reverseUrl = `http://127.0.0.1:8000/api/v1/reverse?lat=${lat}&lon=${lng}`;
                 const reverseResponse = await fetch(reverseUrl);
-                const addressData = await reverseResponse.json();
+                const data = await reverseResponse.json();
                 
-                if (!addressData || !addressData.address) {
+                if (!data || !data.address) {
                     addressText.innerHTML = 'آدرسی برای این نقطه یافت نشد.';
                     return;
                 }
                 
-                // ساخت آدرس تمیز
-                const finalAddress = buildCleanAddress(addressData);
-                addressText.innerHTML = finalAddress;
+                let displayText = data.address;
+                if (data.nearest_street && data.distance_to_street_meters !== null) {
+                    displayText += `<br/><span style="font-size: 10px; color: #ffa042;">📍 نزدیک‌ترین معبر: ${data.nearest_street} (${data.distance_to_street_meters.toFixed(1)} متر)</span>`;
+                }
+                addressText.innerHTML = displayText;
                 
             } catch (error) {
-                console.error('خطا:', error);
-                addressText.innerHTML = 'خطا در ارتباط با سرور آدرس‌یابی.';
+                console.error('خطا در آدرس‌یابی معکوس:', error);
+                addressText.innerHTML = 'خطا در ارتباط با سرور آدرس‌یابی پایتون.';
             }
             
             setTimeout(() => {
                 if (addressBox.style.display === 'block') addressBox.style.display = 'none';
             }, 10000);
         });
+
+        // ==========================================
+        // منطق دکمه‌های فیلتر سریع مکان‌ها (POI - پورت 8000)
+        // ==========================================
+        let poiMarkers = []; // آرایه برای ذخیره پین‌های آبی مکان‌های پیدا شده
+
+        // شنود کلیک روی دکمه‌های فیلتر سریع در بالای نقشه
+        document.querySelectorAll('.cat-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const category = btn.getAttribute('data-category');
+                
+                // رفتار کلیک تکراری: اگر دکمه فعال دوباره کلیک شد، غیرفعال شود و پین‌ها پاک شوند
+                if (btn.classList.contains('active')) {
+                    btn.classList.remove('active');
+                    clearPoiMarkers();
+                    return;
+                }
+
+                // فعال کردن دکمه فیلتر کلیک شده و غیرفعال کردن بقیه دکمه‌ها
+                document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                // ۱. دریافت موقعیت فعلی مرکز نقشه کاربر
+                const center = map.getCenter();
+
+                try {
+                    // ۲. استعلام زنده نزدیک‌ترین مکان‌ها از وب‌سرویس پایتون ( Fast API پورت 8000 )
+                    // فیلتر ۵ کیلومتری با محدودیت دریافت ۱۵ نتیجه
+                    const url = `http://127.0.0.1:8000/api/v1/pois/nearest?lat=${center.lat}&lon=${center.lng}&category=${category}&radius=5000&limit=15`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+
+                    // پاک کردن پین‌های آبی قدیمی از روی نقشه
+                    clearPoiMarkers();
+
+                    if (data.length === 0) {
+                        alert("هیچ مکانی در محدوده ۵ کیلومتری این نقطه یافت نشد!");
+                        return;
+                    }
+
+                    // ۳. رسم پین‌های آبی‌رنگ به همراه پاپ‌آپ‌های اطلاعات فارسی
+                    data.forEach(item => {
+                        // ساخت بدنه پاپ‌آپ فارسی با نام و فاصله دقیق به متر
+                        const popup = new maplibregl.Popup({ offset: 25 })
+                            .setHTML(`<b>${item.name}</b><br/><span style="font-size:10px; color:#ffa042;">📏 فاصله: ${item.distance_meters.toFixed(0)} متر</span>`);
+
+                        // ایجاد پین آبی رنگ مخصوص POIها
+                        const marker = new maplibregl.Marker({ color: '#1e88e5' }) // آبی
+                            .setLngLat([item.lon, item.lat])
+                            .setPopup(popup)
+                            .addTo(map);
+
+                        // ذخیره پین در آرایه برای پاکسازی در کلیک‌های بعدی
+                        poiMarkers.push(marker);
+                    });
+
+                } catch (error) {
+                    console.error("خطا در دریافت مکان‌ها از پایتون:", error);
+                    alert("خطا در ارتباط با سرور دریافت مکان‌های نزدیک!");
+                }
+            });
+        });
+
+        // تابع کمکی پاک کردن پین‌های آبی مکان‌های قدیمی از روی نقشه
+        function clearPoiMarkers() {
+            poiMarkers.forEach(marker => marker.remove());
+            poiMarkers = [];
+        }
     </script>
 </body>
 </html>
