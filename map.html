@@ -3,14 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نقشه اختصاصی ایران (جستجو، مسیریابی و آدرس دقیق)</title>
-    <!-- MapLibre GL JS CSS -->
+    <title>نقشه اختصاصی ایران - آدرس‌دهی هوشمند</title>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: Tahoma, sans-serif; }
         #map { width: 100%; height: 100%; }
 
-        /* نوار جستجوی شناور */
         #search-container {
             position: absolute;
             top: 20px;
@@ -22,9 +20,9 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             display: flex;
             flex-direction: column;
-            width: 320px;
+            width: 340px;
         }
-        #search-row { display: flex; width: 100%; }
+        #search-row { display: flex; width: 100%; gap: 6px; }
         #search-input {
             flex-grow: 1;
             padding: 10px 12px;
@@ -40,16 +38,42 @@
             color: white;
             border: none;
             border-radius: 6px;
-            margin-right: 6px;
             cursor: pointer;
             font-size: 13px;
             font-weight: bold;
             font-family: inherit;
         }
         #search-button:hover { background: #e07a1b; }
+        
+        .search-mode-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 6px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background: #ffa042;
+            color: white;
+        }
+        .mode-btn:not(.active) {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .mode-btn:not(.active):hover {
+            background: #e0e0e0;
+        }
+        
         #search-results { max-height: 200px; overflow-y: auto; margin-top: 6px; background: white; border-radius: 6px; }
         
-        /* باکس راهنمای مسیریابی */
         #info-box {
             position: absolute;
             bottom: 20px;
@@ -65,71 +89,111 @@
             pointer-events: none;
         }
 
-        /* باکس نمایش آدرس دقیق نقطه کلیک شده */
         #address-box {
             position: absolute;
             bottom: 20px;
             left: 20px;
             z-index: 1000;
             background: rgba(0,0,0,0.85);
-            color: #ffa042;
-            padding: 12px 18px;
-            border-radius: 8px;
-            font-size: 12px;
-            line-height: 1.6;
-            max-width: 350px;
-            font-family: monospace;
-            direction: ltr;
-            text-align: left;
-            pointer-events: none;
-            backdrop-filter: blur(4px);
-            border-right: 3px solid #ffa042;
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 14px 18px;
+            font-size: 13px;
+            max-width: 450px;
+            direction: rtl;
+            text-align: right;
+            pointer-events: auto;
+            border-right: 4px solid #ffa042;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
         }
 
         #address-box strong {
-            color: white;
+            color: #ffa042;
             display: block;
-            margin-bottom: 6px;
-            font-family: Tahoma, sans-serif;
-            direction: rtl;
-            text-align: right;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        #address-text {
+            color: #fff;
+            line-height: 1.6;
+            font-size: 12px;
+            display: block;
+        }
+        
+        .address-coord {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 8px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            direction: ltr;
+            text-align: left;
+        }
+        
+        .close-address {
+            position: absolute;
+            top: 8px;
+            left: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            color: #aaa;
+            transition: color 0.2s;
+        }
+        .close-address:hover {
+            color: #ffa042;
         }
 
         .result-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; font-size: 12px; text-align: right; }
         .result-item:hover { background: #f7f7f7; }
-        .address-coord {
+        .result-distance {
             font-size: 10px;
-            color: #aaa;
-            margin-top: 4px;
-            direction: ltr;
-            text-align: left;
+            color: #ffa042;
+            margin-right: 8px;
+        }
+        
+        #route-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.9);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 12px;
+            max-width: 380px;
+            direction: rtl;
+            border-right: 4px solid #ffa042;
+            pointer-events: auto;
         }
     </style>
 </head>
 <body>
 
-    <!-- باکس جستجو -->
     <div id="search-container">
         <div id="search-row">
             <input type="text" id="search-input" placeholder="جستجوی مکان..." />
             <button id="search-button">جستجو</button>
         </div>
+        <div class="search-mode-buttons">
+            <button id="mode-viewport-btn" class="mode-btn active">📍 جستجو در محدوده دید</button>
+            <button id="mode-global-btn" class="mode-btn">🌍 جستجو در کل ایران</button>
+        </div>
         <div id="search-results"></div>
     </div>
 
-    <!-- باکس راهنمای مسیریابی در گوشه نقشه -->
     <div id="info-box">
-        <b>راهنمای مسیریابی بومی:</b><br/>
-        ۱. روی نقشه کلیک کنید تا <b>مبدا (سبز)</b> ثبت شود.<br/>
-        ۲. نقطه دوم را کلیک کنید تا <b>مقصد (قرمز)</b> ثبت و مسیر رسم شود.<br/>
-        ۳. با کلیک سوم نقشه پاک شده و آماده مسیر جدید می‌شود.<br/>
-        <span style="color:#ffa042;">✨ برای دیدن آدرس دقیق هر نقطه، کافی است کلیک راست کنید.</span>
+        <b>✨ نقشه اختصاصی یودکچی</b><br/>
+        ✅ کلیک چپ: تعیین مبدا (سبز) و مقصد (قرمز) برای مسیریابی<br/>
+        ✅ کلیک راست: دریافت آدرس دقیق نقطه<br/>
+        <span style="color:#ffa042;">🔍 هرچه زوم کنید، جزئیات بیشتری می‌بینید</span>
     </div>
 
-    <!-- باکس نمایش آدرس دقیق نقطه کلیک راست شده -->
     <div id="address-box" style="display: none;">
-        <strong>📍 آدرس دقیق مکان کلیک شده:</strong>
-        <span id="address-text">در حال دریافت آدرس...</span>
+        <span class="close-address" onclick="document.getElementById('address-box').style.display='none';">✕</span>
+        <strong>📍 آدرس دقیق مکان</strong>
+        <div id="address-text">در حال دریافت آدرس...</div>
         <div id="address-coords" class="address-coord"></div>
     </div>
 
@@ -137,7 +201,6 @@
 
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <script>
-        // فعال‌سازی موتور چسبندگی حروف فارسی
         maplibregl.setRTLTextPlugin(
             'https://unpkg.com/@mapbox/mapbox-gl-rtl-text@0.2.3/mapbox-gl-rtl-text.js',
             null,
@@ -146,7 +209,7 @@
 
         const map = new maplibregl.Map({
             container: 'map',
-            center: [51.404, 35.715], // تهران
+            center: [51.404, 35.715],
             zoom: 12,
             style: {
                 "version": 8,
@@ -167,112 +230,17 @@
                     }
                 },
                 "layers": [
-                    {
-                        "id": "background",
-                        "type": "background",
-                        "paint": { "background-color": "#f4f1ea" }
-                    },
-                    {
-                        "id": "residential-areas",
-                        "type": "fill",
-                        "source": "iran_polygons",
-                        "source-layer": "planet_osm_polygon",
-                        "filter": ["==", "landuse", "residential"],
-                        "paint": { "fill-color": "#e5e0d8", "fill-opacity": 0.9 }
-                    },
-                    {
-                        "id": "parks-forests",
-                        "type": "fill",
-                        "source": "iran_polygons",
-                        "source-layer": "planet_osm_polygon",
-                        "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]],
-                        "paint": { "fill-color": "#d0e4cc" }
-                    },
-                    {
-                        "id": "water-bodies",
-                        "type": "fill",
-                        "source": "iran_polygons",
-                        "source-layer": "planet_osm_polygon",
-                        "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]],
-                        "paint": { "fill-color": "#aad3df" }
-                    },
-                    {
-                        "id": "motorway-casing",
-                        "type": "line",
-                        "source": "iran_lines",
-                        "source-layer": "planet_osm_line",
-                        "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
-                        "paint": { "line-color": "#e07a1b", "line-width": 4.5 }
-                    },
-                    {
-                        "id": "motorway-core",
-                        "type": "line",
-                        "source": "iran_lines",
-                        "source-layer": "planet_osm_line",
-                        "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
-                        "paint": { "line-color": "#ffa042", "line-width": 2.5 }
-                    },
-                    {
-                        "id": "primary-casing",
-                        "type": "line",
-                        "source": "iran_lines",
-                        "source-layer": "planet_osm_line",
-                        "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
-                        "paint": { "line-color": "#d6a100", "line-width": 3.5 }
-                    },
-                    {
-                        "id": "primary-core",
-                        "type": "line",
-                        "source": "iran_lines",
-                        "source-layer": "planet_osm_line",
-                        "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
-                        "paint": { "line-color": "#ffe082", "line-width": 2 }
-                    },
-                    {
-                        "id": "minor-roads",
-                        "type": "line",
-                        "source": "iran_lines",
-                        "source-layer": "planet_osm_line",
-                        "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]],
-                        "paint": { "line-color": "#ffffff", "line-width": 1.2 }
-                    },
-                    {
-                        "id": "road-labels",
-                        "type": "symbol",
-                        "source": "iran_lines",
-                        "source-layer": "planet_osm_line",
-                        "filter": ["all", ["has", "name"], ["has", "highway"]],
-                        "layout": {
-                            "text-field": ["get", "name"],
-                            "text-font": ["Vazirmatn Thin", "Arial Regular"],
-                            "text-size": 11,
-                            "symbol-placement": "line"
-                        },
-                        "paint": {
-                            "text-color": "#2c2c2c",
-                            "text-halo-color": "#ffffff",
-                            "text-halo-width": 1.5
-                        }
-                    },
-                    {
-                        "id": "poi-labels",
-                        "type": "symbol",
-                        "source": "iran_points",
-                        "source-layer": "planet_osm_point",
-                        "filter": ["has", "name"],
-                        "layout": {
-                            "text-field": ["get", "name"],
-                            "text-font": ["Vazirmatn Thin", "Arial Regular"],
-                            "text-size": 11,
-                            "symbol-placement": "point",
-                            "text-padding": 10
-                        },
-                        "paint": {
-                            "text-color": "#d32f2f", 
-                            "text-halo-color": "#ffffff",
-                            "text-halo-width": 2
-                        }
-                    }
+                    { "id": "background", "type": "background", "paint": { "background-color": "#f4f1ea" } },
+                    { "id": "residential-areas", "type": "fill", "source": "iran_polygons", "source-layer": "planet_osm_polygon", "filter": ["==", "landuse", "residential"], "paint": { "fill-color": "#e5e0d8", "fill-opacity": 0.9 } },
+                    { "id": "parks-forests", "type": "fill", "source": "iran_polygons", "source-layer": "planet_osm_polygon", "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]], "paint": { "fill-color": "#d0e4cc" } },
+                    { "id": "water-bodies", "type": "fill", "source": "iran_polygons", "source-layer": "planet_osm_polygon", "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]], "paint": { "fill-color": "#aad3df" } },
+                    { "id": "motorway-casing", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]], "paint": { "line-color": "#e07a1b", "line-width": 4.5 } },
+                    { "id": "motorway-core", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]], "paint": { "line-color": "#ffa042", "line-width": 2.5 } },
+                    { "id": "primary-casing", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]], "paint": { "line-color": "#d6a100", "line-width": 3.5 } },
+                    { "id": "primary-core", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]], "paint": { "line-color": "#ffe082", "line-width": 2 } },
+                    { "id": "minor-roads", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]], "paint": { "line-color": "#ffffff", "line-width": 1.2 } },
+                    { "id": "road-labels", "type": "symbol", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["all", ["has", "name"], ["has", "highway"]], "layout": { "text-field": ["get", "name"], "text-font": ["Vazirmatn Thin", "Arial Regular"], "text-size": 11, "symbol-placement": "line" }, "paint": { "text-color": "#2c2c2c", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } },
+                    { "id": "poi-labels", "type": "symbol", "source": "iran_points", "source-layer": "planet_osm_point", "filter": ["has", "name"], "layout": { "text-field": ["get", "name"], "text-font": ["Vazirmatn Thin", "Arial Regular"], "text-size": 11, "symbol-placement": "point", "text-padding": 10 }, "paint": { "text-color": "#d32f2f", "text-halo-color": "#ffffff", "text-halo-width": 2 } }
                 ]
             }
         });
@@ -280,26 +248,96 @@
         map.addControl(new maplibregl.NavigationControl());
 
         // ==========================================
-        // بخش اول: منطق موتور جستجو (Nominatim)
+        // توابع آدرس‌دهی هوشمند
+        // ==========================================
+        
+        // تابع تمیز کردن نام منطقه
+        function cleanSuburb(suburb) {
+            if (!suburb) return '';
+            return suburb.replace(' شهر تهران', '').replace('منطقه ', 'منطقهٔ ');
+        }
+
+        // تابع ساخت آدرس تمیز از داده Nominatim
+        function buildCleanAddress(addressData) {
+            if (!addressData || !addressData.address) {
+                return addressData?.display_name || 'آدرسی یافت نشد';
+            }
+            
+            const addr = addressData.address;
+            const parts = [];
+            
+            // 1. استان
+            if (addr.state) parts.push(addr.state);
+            
+            // 2. شهرستان
+            if (addr.county && addr.county !== addr.state) parts.push(addr.county);
+            
+            // 3. شهر
+            if (addr.city && addr.city !== addr.county) parts.push(addr.city);
+            
+            // 4. منطقه (تمیز شده)
+            if (addr.suburb) {
+                const clean = cleanSuburb(addr.suburb);
+                if (clean && !parts.includes(clean)) parts.push(clean);
+            }
+            
+            // 5. محله
+            if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) {
+                parts.push(addr.neighbourhood);
+            }
+            
+            // 6. خیابان اصلی (مقصد)
+            if (addr.road && !parts.includes(addr.road)) {
+                parts.push(addr.road);
+            }
+            
+            // حذف موارد تکراری و خالی
+            const finalParts = [];
+            for (const part of parts) {
+                if (part && part !== '' && !finalParts.includes(part)) {
+                    finalParts.push(part);
+                }
+            }
+            
+            return finalParts.join('، ');
+        }
+
+        // ==========================================
+        // جستجو (Nominatim)
         // ==========================================
         let searchMarker = null;
-        document.getElementById('search-button').addEventListener('click', executeSearch);
-        document.getElementById('search-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') executeSearch();
-        });
-
+        let currentSearchMode = 'viewport';
+        
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
         async function executeSearch() {
             const query = document.getElementById('search-input').value.trim();
             const resultsContainer = document.getElementById('search-results');
-            resultsContainer.innerHTML = '';
-            if (!query) return;
-
+            if (!query) { resultsContainer.innerHTML = ''; return; }
             resultsContainer.innerHTML = '<div class="result-item">در حال جستجو...</div>';
-
             try {
-                const response = await fetch(`http://127.0.0.1:8080/search?q=${encodeURIComponent(query)}&format=json`);
+                let url = `http://127.0.0.1:8080/search?q=${encodeURIComponent(query)}&format=json&accept-language=fa&limit=20`;
+                if (currentSearchMode === 'viewport') {
+                    const bounds = map.getBounds();
+                    const viewbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+                    url += `&viewbox=${viewbox}&bounded=1`;
+                }
+                const response = await fetch(url);
                 const data = await response.json();
                 displaySearchResults(data);
+                if (data.length === 0) {
+                    const modeText = currentSearchMode === 'viewport' ? 'محدوده دید' : 'کل ایران';
+                    resultsContainer.innerHTML = `<div class="result-item">مکانی برای "${query}" در ${modeText} یافت نشد.</div>`;
+                }
             } catch (error) {
                 console.error("خطا در جستجو:", error);
                 resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به سرور جستجو!</div>';
@@ -309,17 +347,17 @@
         function displaySearchResults(results) {
             const resultsContainer = document.getElementById('search-results');
             resultsContainer.innerHTML = '';
-            if (results.length === 0) {
-                resultsContainer.innerHTML = '<div class="result-item">مکان یافت نشد.</div>';
-                return;
-            }
+            if (results.length === 0) return;
+            const center = map.getCenter();
             results.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'result-item';
-                div.innerText = item.display_name;
+                const lat = parseFloat(item.lat);
+                const lon = parseFloat(item.lon);
+                const distance = calculateDistance(center.lat, center.lng, lat, lon);
+                const formattedAddress = buildCleanAddress(item);
+                div.innerHTML = `${formattedAddress}<span class="result-distance">(${distance.toFixed(1)} کیلومتر)</span>`;
                 div.onclick = () => {
-                    const lat = parseFloat(item.lat);
-                    const lon = parseFloat(item.lon);
                     map.flyTo({ center: [lon, lat], zoom: 15, essential: true });
                     if (searchMarker) searchMarker.remove();
                     searchMarker = new maplibregl.Marker({ color: '#ffa042' }).setLngLat([lon, lat]).addTo(map);
@@ -329,189 +367,188 @@
             });
         }
 
+        document.getElementById('mode-viewport-btn').addEventListener('click', () => {
+            currentSearchMode = 'viewport';
+            document.getElementById('mode-viewport-btn').classList.add('active');
+            document.getElementById('mode-global-btn').classList.remove('active');
+            if (document.getElementById('search-input').value.trim()) executeSearch();
+        });
+        
+        document.getElementById('mode-global-btn').addEventListener('click', () => {
+            currentSearchMode = 'global';
+            document.getElementById('mode-global-btn').classList.add('active');
+            document.getElementById('mode-viewport-btn').classList.remove('active');
+            if (document.getElementById('search-input').value.trim()) executeSearch();
+        });
+        
+        document.getElementById('search-button').addEventListener('click', executeSearch);
+        document.getElementById('search-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') executeSearch(); });
+
         // ==========================================
-        // بخش دوم: منطق موتور مسیریابی زنده (OSRM)
+        // مسیریابی با کلیک چپ (OSRM)
         // ==========================================
         let startCoords = null;
         let endCoords = null;
         let startMarker = null;
         let endMarker = null;
 
-        // شنود کلیک روی نقشه برای تعیین مبدا و مقصد
-        map.on('click', async (e) => {
-            const coords = [e.lngLat.lng, e.lngLat.lat];
+        function removeRoutePanel() {
+            const panel = document.getElementById('route-panel');
+            if (panel) panel.remove();
+        }
 
-            if (!startCoords) {
-                // ثبت مبدا (پین سبز)
-                startCoords = coords;
-                startMarker = new maplibregl.Marker({ color: '#2e7d32' }) // سبز
-                    .setLngLat(startCoords)
-                    .addTo(map);
-            } else if (!endCoords) {
-                // ثبت مقصد (پین قرمز)
-                endCoords = coords;
-                endMarker = new maplibregl.Marker({ color: '#d32f2f' }) // قرمز
-                    .setLngLat(endCoords)
-                    .addTo(map);
+        function showRoutePanel(html) {
+            removeRoutePanel();
+            const panel = document.createElement('div');
+            panel.id = 'route-panel';
+            panel.innerHTML = html + `<div style="text-align: left; margin-top: 8px;"><span onclick="removeRoutePanel()" style="cursor:pointer; font-size:10px; color:#666;">بستن ✕</span></div>`;
+            document.body.appendChild(panel);
+        }
 
-                // استعلام زنده مسیر از OSRM اختصاصی شما
-                calculateRoute(startCoords, endCoords);
-            } else {
-                // پاک‌کردن مسیر قبلی برای ثبت مسیر جدید
-                resetRouting();
-                startCoords = coords;
-                startMarker = new maplibregl.Marker({ color: '#2e7d32' })
-                    .setLngLat(startCoords)
-                    .addTo(map);
-            }
-        });
-
-        async function calculateRoute(start, end) {
-            // ساخت آدرس درخواست API مسیریابی OSRM روی پورت 5000
-            const url = `http://127.0.0.1:5000/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
-
+        async function calculateRoute(start, end, showPanel = true) {
+            const url = `http://127.0.0.1:5000/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson&steps=true`;
             try {
                 const response = await fetch(url);
                 const data = await response.json();
-
                 if (data.code !== 'Ok') {
                     alert('مسیر جاده‌ای پیدا نشد!');
-                    return;
+                    return null;
                 }
 
-                const routeGeometry = data.routes[0].geometry; // دریافت مختصات خط هندسی مسیر
+                const steps = data.routes[0].legs[0].steps;
+                const routeStreets = [];
+                steps.forEach((step, index) => {
+                    if (step.name && step.name !== '') {
+                        routeStreets.push({
+                            order: index + 1,
+                            street: step.name,
+                            distance: step.distance,
+                            duration: step.duration,
+                            maneuver: step.maneuver?.type || 'continue'
+                        });
+                    }
+                });
 
-                // ترسیم یا بروزرسانی خط آبی مسیر روی نقشه
+                const lastStreet = routeStreets[routeStreets.length - 1];
+                const totalDistance = (data.routes[0].distance / 1000).toFixed(1);
+                const totalMinutes = Math.floor(data.routes[0].duration / 60);
+                const totalSeconds = Math.floor(data.routes[0].duration % 60);
+
+                if (showPanel) {
+                    let panelHtml = `
+                        <div style="direction: rtl;">
+                            <div style="border-bottom: 1px solid #ffa042; padding-bottom: 8px; margin-bottom: 8px;">
+                                <b>🚗 خلاصه مسیر</b><br/>
+                                📏 فاصله: ${totalDistance} کیلومتر<br/>
+                                ⏱️ زمان: ${totalMinutes} دقیقه و ${totalSeconds} ثانیه
+                            </div>
+                            <div style="margin-bottom: 8px;">
+                                <b>📍 آخرین خیابان:</b> <span style="color:#ffa042;">${lastStreet?.street || 'نامشخص'}</span>
+                            </div>
+                            <details style="font-size: 11px;">
+                                <summary style="cursor: pointer; color: #ffa042;">📋 لیست خیابان‌های مسیر (${routeStreets.length} مرحله)</summary>
+                                <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+                                    ${routeStreets.map(s => `
+                                        <div style="padding: 6px 0; border-bottom: 1px solid #444;">
+                                            ${s.order}. <b>${s.street}</b><br/>
+                                            <span style="font-size: 10px; color: #aaa;">
+                                                ${(s.distance).toFixed(0)} متر • ${Math.floor(s.duration)} ثانیه
+                                                ${s.maneuver === 'turn' ? ' ↪️ گردش' : s.maneuver === 'depart' ? ' 🚀 شروع' : s.maneuver === 'arrive' ? ' 🏁 پایان' : ' ➡️ ادامه'}
+                                            </span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </details>
+                        </div>
+                    `;
+                    showRoutePanel(panelHtml);
+                }
+
+                const routeGeometry = data.routes[0].geometry;
                 if (map.getSource('route')) {
                     map.getSource('route').setData(routeGeometry);
                 } else {
-                    map.addSource('route', {
-                        'type': 'geojson',
-                        'data': routeGeometry
-                    });
-
+                    map.addSource('route', { type: 'geojson', data: routeGeometry });
                     map.addLayer({
-                        'id': 'route-line',
-                        'type': 'line',
-                        'source': 'route',
-                        'layout': {
-                            'line-join': 'round',
-                            'line-cap': 'round'
-                        },
-                        'paint': {
-                            'line-color': '#0288d1', // رنگ آبی رسمی مسیر
-                            'line-width': 6,
-                            'line-opacity': 0.85
-                        }
+                        id: 'route-line', type: 'line', source: 'route',
+                        layout: { 'line-join': 'round', 'line-cap': 'round' },
+                        paint: { 'line-color': '#0288d1', 'line-width': 6, 'line-opacity': 0.85 }
                     });
                 }
+                
+                return { streets: routeStreets, lastStreet: lastStreet?.street, totalDistance: data.routes[0].distance, totalDuration: data.routes[0].duration };
             } catch (error) {
-                console.error("خطا در ارتباط با سرور مسیریابی:", error);
+                console.error("خطا:", error);
                 alert("امکان ارتباط با سرور مسیریابی وجود ندارد!");
+                return null;
             }
         }
 
         function resetRouting() {
-            startCoords = null;
-            endCoords = null;
+            startCoords = null; endCoords = null;
             if (startMarker) startMarker.remove();
             if (endMarker) endMarker.remove();
             if (map.getLayer('route-line')) map.removeLayer('route-line');
             if (map.getSource('route')) map.removeSource('route');
+            removeRoutePanel();
         }
 
+        map.on('click', async (e) => {
+            const coords = [e.lngLat.lng, e.lngLat.lat];
+            if (!startCoords) {
+                startCoords = coords;
+                startMarker = new maplibregl.Marker({ color: '#2e7d32' }).setLngLat(startCoords).addTo(map);
+            } else if (!endCoords) {
+                endCoords = coords;
+                endMarker = new maplibregl.Marker({ color: '#d32f2f' }).setLngLat(endCoords).addTo(map);
+                await calculateRoute(startCoords, endCoords, true);
+            } else {
+                resetRouting();
+                startCoords = coords;
+                startMarker = new maplibregl.Marker({ color: '#2e7d32' }).setLngLat(startCoords).addTo(map);
+            }
+        });
+
         // ==========================================
-        // بخش سوم: نمایش آدرس دقیق نقطه کلیک راست شده (Reverse Geocoding)
+        // آدرس کلیک راست (نسخه نهایی ساده)
         // ==========================================
         const addressBox = document.getElementById('address-box');
         const addressText = document.getElementById('address-text');
         const addressCoords = document.getElementById('address-coords');
 
-        // شنود رویداد کلیک راست روی نقشه (contextmenu)
         map.on('contextmenu', async (e) => {
-            // جلوگیری از باز شدن منوی پیش‌فرض مرورگر
             e.preventDefault();
-            
             const lng = e.lngLat.lng;
             const lat = e.lngLat.lat;
             
-            // نمایش باکس در حال بارگذاری
             addressBox.style.display = 'block';
             addressText.innerHTML = 'در حال دریافت آدرس...';
             addressCoords.innerHTML = `مختصات: ${lng.toFixed(6)} , ${lat.toFixed(6)}`;
             
-            // درخواست به Nominatim برای دریافت آدرس معکوس
-            // limit=1 و zoom=18 برای دقت بیشتر در جزییات
-        const reverseUrl = `http://127.0.0.1:8080/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=fa`;
-            
             try {
-                const response = await fetch(reverseUrl);
-                const data = await response.json();
+                // دریافت آدرس از Nominatim
+                const reverseUrl = `http://127.0.0.1:8080/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1&accept-language=fa`;
+                const reverseResponse = await fetch(reverseUrl);
+                const addressData = await reverseResponse.json();
                 
-                if (data && data.display_name) {
-                    // نمایش آدرس کامل به زبان فارسی (اگر موجود باشد)
-                    addressText.innerHTML = data.display_name;
-                    
-                    // اضافه کردن اطلاعات بیشتر مثل خیابان، محله، شهر در صورت وجود
-                    let extraInfo = '';
-                    if (data.address) {
-                        const addr = data.address;
-                        if (addr.road) extraInfo += ` | خیابان: ${addr.road}`;
-                        if (addr.neighbourhood) extraInfo += ` | محله: ${addr.neighbourhood}`;
-                        if (addr.suburb) extraInfo += ` | منطقه: ${addr.suburb}`;
-                        if (addr.city) extraInfo += ` | شهر: ${addr.city}`;
-                        if (addr.state) extraInfo += ` | استان: ${addr.state}`;
-                        if (extraInfo) {
-                            const extraSpan = document.createElement('div');
-                            extraSpan.style.fontSize = '10px';
-                            extraSpan.style.color = '#ccc';
-                            extraSpan.style.marginTop = '4px';
-                            extraSpan.style.direction = 'rtl';
-                            extraSpan.style.textAlign = 'right';
-                            extraSpan.innerHTML = extraInfo;
-                            addressBox.appendChild(extraSpan);
-                            // حذف خودکار بعد از 5 ثانیه یا در کلیک بعدی پاک می‌شود
-                            setTimeout(() => {
-                                if (extraSpan && extraSpan.remove) extraSpan.remove();
-                            }, 8000);
-                        }
-                    }
-                } else {
+                if (!addressData || !addressData.address) {
                     addressText.innerHTML = 'آدرسی برای این نقطه یافت نشد.';
+                    return;
                 }
+                
+                // ساخت آدرس تمیز
+                const finalAddress = buildCleanAddress(addressData);
+                addressText.innerHTML = finalAddress;
+                
             } catch (error) {
-                console.error('خطا در دریافت آدرس معکوس:', error);
+                console.error('خطا:', error);
                 addressText.innerHTML = 'خطا در ارتباط با سرور آدرس‌یابی.';
             }
             
-            // پس از 8 ثانیه باکس آدرس را مخفی کن (اختیاری)
             setTimeout(() => {
-                if (addressBox.style.display === 'block') {
-                    // فقط در صورتی مخفی کن که باکس هنوز باز است و موس روی آن نیست
-                    addressBox.style.display = 'none';
-                }
+                if (addressBox.style.display === 'block') addressBox.style.display = 'none';
             }, 10000);
         });
-        
-        // وقتی موس روی باکس آدرس رفت، آن را مخفی نکن
-        addressBox.addEventListener('mouseenter', () => {
-            // می‌توانید تایمر را ریست کنید، اما فعلا مهم نیست
-        });
-        
-        // کلیک روی دکمه بستن اختیاری برای باکس آدرس (یک ضربدر ساده اضافه می‌کنیم)
-        const closeBtn = document.createElement('span');
-        closeBtn.innerHTML = '✕';
-        closeBtn.style.position = 'absolute';
-        closeBtn.style.top = '5px';
-        closeBtn.style.left = '10px';
-        closeBtn.style.cursor = 'pointer';
-        closeBtn.style.fontSize = '14px';
-        closeBtn.style.color = '#ffa042';
-        closeBtn.style.fontWeight = 'bold';
-        closeBtn.onclick = () => {
-            addressBox.style.display = 'none';
-        };
-        addressBox.appendChild(closeBtn);
     </script>
 </body>
 </html>

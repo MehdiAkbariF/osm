@@ -17,15 +17,27 @@ services:
     image: mediagis/nominatim:4.4
     container_name: custom_nominatim
     ports:
-      - "8080:8080" 
+      - "8080:8080"
     volumes:
       - nominatim_data:/var/lib/postgresql/14/main
       - ./data:/data
     environment:
-      - PBF_PATH=/data/iran-latest.osm.pbf 
+      - PBF_PATH=/data/iran-latest.osm.pbf
       - NOMINATIM_DEFAULT_LANGUAGE=fa
+       NOMINATIM_POSTGRESQL_SHARED_BUFFERS=2GB
+       NOMINATIM_POSTGRESQL_WORK_MEM=128MB
     restart: always
 
+
+  osrm:
+    image: osrm/osrm-backend
+    container_name: custom_osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/data
+    command: osrm-routed --algorithm mld /data/iran-latest.osrm
+    restart: always
 
 volumes:
   postgres_data:

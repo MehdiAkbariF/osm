@@ -112,3 +112,114 @@ services:
 volumes:
   postgres_data:
   nominatim_data:
+
+
+
+
+
+
+
+
+
+
+
+
+  ۱. ساختار دایرکتوری و فایل‌های پروژه
+پوشه اصلی پروژه شما در مسیر C:\Users\Raven\OSM شامل ساختار زیر است:
+code
+Text
+OSM/
+├── data/
+│   ├── iran-latest.osm.pbf          # فایل دیتای خام جغرافیایی ایران (OSM)
+│   ├── iran-latest.osm.osrm         # فایل‌های گراف خروجی فرآیند مسیریابی OSRM
+│   └── ... (سایر فایل‌های تولیدی OSRM)
+├── fonts/
+│   ├── arial.ttf                    # فونت سیستم (کمکی)
+│   └── Vazirmatn-Thin.ttf           # فونت فارسی رندر نقشه (وزیر)
+├── martin/
+│   └── martin.exe                   # فایل اجرایی تایل‌سرور وکتور
+├── config.yaml                      # تنظیمات اتصال تایل‌سرور به دیتابیس و پوشه فونت‌ها
+├── docker-compose.yml               # کانتینرهای پایگاه داده جغرافیایی و موتور جستجو
+├── map.html                         # رابط کاربری وب نقشه (یکپارچه‌ساز تمام سرویس‌ها)
+└── README.md                        # مستندات فنی پروژه
+۲. تنظیمات زیرساخت سیستم‌عامل میزبان (Windows WSL2)
+برای تخصیص منابع کافی به موتورهای پردازشی داکر، فایل تنظیمات .wslconfig در مسیر پوشه کاربری ویندوز (C:\Users\Raven\.wslconfig) ساخته شده است:
+code
+Ini
+[wsl2]
+memory=8GB
+processors=4
+۳. پیکربندی لایه داده و سرویس‌ها (Docker Compose)
+فایل docker-compose.yml وظیفه راه‌اندازی و مدیریت هم‌زمان پایگاه داده جغرافیایی PostGIS، موتور جستجوی بومی Nominatim و موتور مسیریابی OSRM را بر عهده دارد:
+code
+Yaml
+services:
+  gis-db:
+    image: postgis/postgis:16-3.4
+    container_name: custom_map_db
+    environment:
+      - POSTGRES_USER=map_admin
+      - POSTGRES_PASSWORD=map_secure_pass
+      - POSTGRES_DB=iran_map
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./data:/data
+    restart: always
+
+  nominatim:
+    image: mediagis/nominatim:4.4
+    container_name: custom_nominatim
+    ports:
+      - "8080:8080"
+    volumes:
+      - nominatim_data:/var/lib/postgresql/14/main
+      - ./data:/data
+    environment:
+      - PBF_PATH=/data/iran-latest.osm.pbf
+      - NOMINATIM_DEFAULT_LANGUAGE=fa
+    restart: always
+
+  osrm:
+    image: osrm/osrm-backend
+    container_name: custom_osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/data
+    command: osrm-routed --algorithm mld /data/iran-latest.osm.osrm
+    restart: always
+
+volumes:
+  postgres_data:
+  nominatim_data:
+۴. پیکربندی تایل‌سرور Martin (config.yaml)
+این فایل به تایل‌سرور Rust آموزش می‌دهد که چگونه به دیتابیس داکر متصل شده و پوشه فونت‌های بومی سیستم را برای تولید SDF Glyphs پایش کند:
+code
+Yaml
+postgres:
+  connection_string: 'postgres://map_admin:map_secure_pass@localhost:5433/iran_map'
+
+fonts:
+  - 'fonts'
+
+cache_size_mb: 2048
+preferred_encoding: gzip
+۵. راهنمای اجرای گام‌به‌گام پلتفرم در حالت توسعه
+گام اول: اجرای سرویس‌های داکر
+PowerShell را در مسیر C:\Users\Raven\OSM باز کرده و دستور زیر را اجرا کنید:
+code
+Powershell
+docker compose up -d
+گام دوم: اجرای تایل‌سرور Martin
+در پنجره دوم PowerShell، دستور زیر را اجرا کنید:
+code
+Powershell
+.\martin\martin.exe --config config.yaml --webui enable-for-all
+گام سوم: اجرای وب‌سرور توسعه کلاینت
+در پنجره سوم PowerShell، سرور وب پایتون را روی پورت ۵۵۰۰ استارت کنید:
+code
+Powershell
+python -m http.server 5500
+آدرس دسترسی کلاینت: http://127.0.0.1:5500/map.html
