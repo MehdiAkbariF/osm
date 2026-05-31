@@ -24,8 +24,8 @@ services:
     environment:
       - PBF_PATH=/data/iran-latest.osm.pbf
       - NOMINATIM_DEFAULT_LANGUAGE=fa
-       NOMINATIM_POSTGRESQL_SHARED_BUFFERS=2GB
-       NOMINATIM_POSTGRESQL_WORK_MEM=128MB
+      - NOMINATIM_POSTGRESQL_SHARED_BUFFERS=2GB 
+      - NOMINATIM_POSTGRESQL_WORK_MEM=128MB     
     restart: always
 
 
