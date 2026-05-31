@@ -1,14 +1,15 @@
 # app/api/v1/endpoints/auth.py
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.user import UserRegister, UserLogin, TokenResponse, UserResponse, MessageResponse, ChangePassword, UserUpdate
 from app.services.auth import auth_service
-from app.api.v1.dependencies import get_current_user  # ✅ اضافه کردن این خط
+from app.api.v1.dependencies import get_current_user
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
 @router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserRegister, db: Session = Depends(get_db)):
     """
@@ -80,7 +81,8 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
             detail="حساب کاربری شما هنوز توسط ادمین تایید نشده است"
         )
     
-    user.last_login = datetime.utcnow()
+    # تغییر اعمال‌شده: اصلاح تو رفتگی خطوط زیر
+    user.last_login = datetime.now(timezone.utc)
     db.commit()
     
     access_token = auth_service.create_access_token(user.id, user.username)

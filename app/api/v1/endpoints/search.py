@@ -1,6 +1,9 @@
+# app/api/v1/endpoints/search.py
 from enum import Enum
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from app.services.nominatim import nominatim_service
+from app.models.api_key import APIKey
+from app.api.v1.dependencies import get_api_key  # وارد کردن وابستگی کلید دسترسی
 
 router = APIRouter()
 
@@ -18,7 +21,8 @@ async def search_address(
     lat: float = Query(None, description="عرض جغرافیایی (برای حالت proximity)"),
     lon: float = Query(None, description="طول جغرافیایی (برای حالت proximity)"),
     viewbox: str = Query(None, description="کادر نقشه فعلی به فرمت minLon,maxLat,maxLon,minLat (برای حالت viewport)"),
-    city: str = Query(None, description="نام شهر مشخص جهت محدودسازی نتایج (برای حالت city)")
+    city: str = Query(None, description="نام شهر مشخص جهت محدودسازی نتایج (برای حالت city)"),
+    api_key: APIKey = Depends(get_api_key)  # اجباری کردن ارائه کلید معتبر
 ):
     # بررسی ولیدیشن منطقی پارامترها بر اساس Enum انتخاب شده
     if mode == SearchMode.proximity_search and (lat is None or lon is None):

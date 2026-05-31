@@ -5,13 +5,14 @@ from typing import List, Optional
 from app.core.database import get_db
 from app.models.user import User
 from app.models.location import Location
+from app.models.api_key import APIKey  # اضافه شدن مدل کلید دسترسی
 from app.schemas.location import (
     LocationCreate, LocationUpdate, LocationResponse, 
     LocationAdminResponse, LocationApprove, LocationReject,
     MessageResponse
 )
 from app.services.location_service import location_service
-from app.api.v1.dependencies import get_current_user, get_current_admin
+from app.api.v1.dependencies import get_current_user, get_current_admin, get_api_key  # اضافه شدن وابستگی کلید دسترسی
 
 router = APIRouter(prefix="/locations", tags=["Locations"])
 
@@ -110,11 +111,12 @@ async def get_approved_locations(
     limit: int = Query(100, ge=1, le=500),
     category: Optional[str] = None,
     city: Optional[str] = None,
+    api_key: APIKey = Depends(get_api_key),  # اِعمال امنیت با کلید دسترسی
     db: Session = Depends(get_db)
 ):
     """
     دریافت موقعیت‌های تایید شده (برای نمایش در نقشه)
-    - بدون نیاز به احراز هویت
+    - نیازمند ارائه API Key معتبر
     """
     locations = location_service.get_all_locations(
         db, skip, limit, status="approved", category=category, city=city
@@ -127,11 +129,12 @@ async def get_nearby_locations(
     lon: float = Query(..., description="طول جغرافیایی"),
     radius_km: float = Query(5.0, ge=0.5, le=50, description="شعاع بر حسب کیلومتر"),
     limit: int = Query(20, ge=1, le=50),
+    api_key: APIKey = Depends(get_api_key),  # اِعمال امنیت با کلید دسترسی
     db: Session = Depends(get_db)
 ):
     """
     دریافت موقعیت‌های تایید شده نزدیک به مختصات داده شده
-    - برای نمایش مکان‌های اطراف
+    - برای نمایش مکان‌های اطراف (نیازمند ارائه API Key معتبر)
     """
     locations = location_service.get_nearby_locations(db, lat, lon, radius_km, limit)
     return locations

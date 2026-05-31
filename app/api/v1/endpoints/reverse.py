@@ -1,8 +1,10 @@
 # app/api/v1/endpoints/reverse.py
 import re
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from app.services.postgis_service import postgis_service
 from app.services.nominatim import nominatim_service
+from app.models.api_key import APIKey
+from app.api.v1.dependencies import get_api_key  # وارد کردن وابستگی کلید دسترسی
 
 router = APIRouter()
 
@@ -35,7 +37,8 @@ def clean_city_name(city: str) -> str:
 async def reverse_geocoding(
     lat: float = Query(..., description="عرض جغرافیایی نقطه"),
     lon: float = Query(..., description="طول جغرافیایی نقطه"),
-    include_poi: bool = Query(False, description="آیا نام اماکن تجاری در آدرس نمایش داده شود؟")
+    include_poi: bool = Query(False, description="آیا نام اماکن تجاری در آدرس نمایش داده شود؟"),
+    api_key: APIKey = Depends(get_api_key)  # اجباری کردن ارائه کلید معتبر
 ):
     # ۱. استعلام هوشمند با بافرهای چندمرحله‌ای
     smart_result = postgis_service.smart_reverse_geocode(lat=lat, lon=lon)

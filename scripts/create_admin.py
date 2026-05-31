@@ -10,10 +10,11 @@ from app.models.user import User
 from app.services.auth import auth_service
 
 def create_tables():
-    """ایجاد جداول دیتابیس"""
-    print("📦 در حال ایجاد جداول دیتابیس...")
+    """حذف جداول قدیمی ناقص و ایجاد جداول کامل دیتابیس"""
+    print("📦 در حال حذف جداول قدیمی و ایجاد مجدد جداول...")
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    print("✅ جداول دیتابیس ایجاد شدند")
+    print("✅ جداول دیتابیس با موفقیت بازسازی شدند")
 
 def create_admin():
     db = SessionLocal()
