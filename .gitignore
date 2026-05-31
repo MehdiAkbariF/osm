@@ -1,13 +1,22 @@
-# Docker database volume (if stored locally)
-postgres_data/
+# --- Virtual Environment ---
+venv/
+.venv/
+__pycache__/
+*.pyc
 
-# Raw map data files
+# --- Raw & Compiled Map Data ---
 data/*.osm.pbf
+data/*.osrm
+data/*.osrm.*
 
-# Executables and builds
+# --- Docker database volume (if stored locally) ---
+postgres_data/
+nominatim_data/
+
+# --- Executables and builds ---
 martin/martin.exe
 osm2pgsql/
 
-# OS generated files
+# --- OS generated files ---
 .DS_Store
 Thumbs.db
