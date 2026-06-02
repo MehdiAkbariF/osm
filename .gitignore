@@ -1,22 +1,232 @@
-# --- Virtual Environment ---
+# ======================================
+# Python & Virtual Environment
+# ======================================
 venv/
 .venv/
+env/
+.env/
+virtualenv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+.coverage
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
 
-# --- Raw & Compiled Map Data ---
-data/*.osm.pbf
-data/*.osrm
-data/*.osrm.*
+# ======================================
+# OSM Raw Data Files (حجیم - چند گیگابایت)
+# ======================================
+# فایل‌های نقشه خام
+*.osm
+*.osm.bz2
+*.osm.gz
+*.osm.pbf
+*.pbf
+*.osm.xml
 
-# --- Docker database volume (if stored locally) ---
+# فایل‌های OSRM (مسیریابی - بسیار حجیم)
+*.osrm
+*.osrm.*
+*.osrm.nbg_nodes
+*.osrm.nbg_edges
+*.osrm.enw
+*.osrm.fileIndex
+*.osrm.tls
+*.osrm.ebg
+*.osrm.ebg_nodes
+*.osrm.edges
+*.osrm.partition
+*.osrm.maneuver_overrides
+*.osrm.mldgr
+*.osrm.tld
+*.osrm.turn_weight_penalties
+*.osrm.geometry
+*.osrm.icd
+*.osrm.turn_penalties_index
+*.osrm.hsgr
+*.osrm.fingerprint
+
+# فایل‌های خروجی Nominatim
+nominatim.log
+*.svg
+
+# ======================================
+# فایل‌های GIS و دیتای مکانی
+# ======================================
+*.shp
+*.shx
+*.dbf
+*.prj
+*.sbn
+*.sbx
+*.fbn
+*.fbx
+*.ain
+*.aih
+*.ixs
+*.mxs
+*.atx
+*.cpg
+*.qgs
+*.qgz
+*.gpkg
+*.gdb/
+*.gpx
+*.kml
+*.kmz
+*.geojson
+*.topojson
+*.mbtiles
+
+# ======================================
+# دیتابیس‌ها (حجیم)
+# ======================================
+*.sql
+*.sqlite
+*.sqlite3
+*.db
+*.db3
+*.mdb
+*.accdb
 postgres_data/
 nominatim_data/
+pgdata/
+*.dump
+*.backup
 
-# --- Executables and builds ---
-martin/martin.exe
-osm2pgsql/
-
-# --- OS generated files ---
+# ======================================
+# فایل‌های موقت و کش
+# ======================================
+*.tmp
+*.temp
+*.cache
+*.log
+*.log.*
+logs/
+*.pid
+*.seed
+*.lock
+*.swp
+*.swo
+*~
 .DS_Store
 Thumbs.db
+desktop.ini
+.cache/
+.tmp/
+
+# ======================================
+# Executables & Builds
+# ======================================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.bin
+martin/martin.exe
+osm2pgsql/
+osrm-extract
+osrm-contract
+osrm-partition
+osrm-customize
+osrm-routed
+*.class
+*.jar
+target/
+build/
+
+# ======================================
+# IDE & Editor Files
+# ======================================
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.code-workspace
+.vs/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ======================================
+# Docker & Containers
+# ======================================
+docker-compose.override.yml
+*.container
+*.image
+.dockerignore
+Dockerfile.test
+docker-compose.*.yml
+
+# ======================================
+# فایل‌های تنظیمات شخصی
+# ======================================
+.env
+.env.local
+.env.*.local
+.secrets
+config.local.*
+*.key
+*.pem
+*.crt
+
+# ======================================
+# فایل‌های دیتای مسیریابی (اضافی)
+# ======================================
+data/ !data/.gitkeep
+raw_data/
+temp_data/
+cache_data/
+*.mdx
+*.mms
+*.rec
+*.dat
+
+# ======================================
+# فایل‌های فشرده شده
+# ======================================
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.bz2
+*.gz
+
+# ======================================
+# Backup Files
+# ======================================
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*-backup
+backup_*/
+
+# ======================================
+# فایل‌های تست و نمونه
+# ======================================
+sample_data/
+test_data/
+examples/*.osm
+notebooks/*.ipynb_checkpoints

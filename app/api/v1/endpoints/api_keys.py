@@ -49,10 +49,11 @@ async def create_user_api_key(
     db.commit()
     db.refresh(new_key)
 
-    # ارسال مقدار خام کلید فقط در پاسخ اولین درخواست جهت کپی کردن کاربر
-    response_data = APIKeyCreateResponse.model_validate(new_key)
-    response_data.raw_key = raw_key
-    return response_data
+    # تغییر اعمال‌شده: تبدیل به دیکشنری و اضافه کردن فیلد خام پیش از ولیدیشن نهایی
+    key_data_dict = APIKeyResponse.model_validate(new_key).dict()
+    key_data_dict["raw_key"] = raw_key  # تزریق کلید خام به صورت ایمن
+
+    return APIKeyCreateResponse(**key_data_dict)
 
 @router.get("/", response_model=List[APIKeyResponse])
 async def get_my_api_keys(

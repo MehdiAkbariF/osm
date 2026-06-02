@@ -213,10 +213,23 @@
             true
         );
 
+        // تعریف کلید دسترسی فعال صادر شده توسعه‌دهنده
+        const MAP_API_KEY = "yk_live_ctrFT2gB-IVAsPNP0q_QsX1VTml6qXVTaSDhkOcv630";
+
         const map = new maplibregl.Map({
             container: 'map',
             center: [51.404, 35.715],
             zoom: 12,
+            // تغییر اعمال‌شده: تزریق هدر کلید دسترسی به تمام درخواست‌های تایل‌سرور و فونت‌ها (پورت 8000)
+            transformRequest: (url, resourceType) => {
+                if (url.includes("127.0.0.1:8000") || url.includes("localhost:8000")) {
+                    return {
+                        url: url,
+                        headers: { 'X-API-Key': MAP_API_KEY }
+                    };
+                }
+                return { url: url };
+            },
             style: {
                 "version": 8,
                 "name": "Advanced Iran Style",
@@ -319,7 +332,10 @@
                     url += `&mode=global`;
                 }
 
-                const response = await fetch(url);
+                // تغییر اعمال‌شده: تزریق کلید دسترسی به هدر درخواست جستجو
+                const response = await fetch(url, {
+                    headers: { 'X-API-Key': MAP_API_KEY }
+                });
                 const data = await response.json();
                 displaySearchResults(data);
                 
@@ -374,7 +390,7 @@
         document.getElementById('search-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') executeSearch(); });
 
         // ==========================================
-        // مسیریابی با کلیک چپ (OSRM)
+        // مسیریابی با کلیک چپ (OSRM - بدون نیاز به API Key چون روی پورت ۵۰۰۰ است)
         // ==========================================
         let startCoords = null;
         let endCoords = null;
@@ -516,7 +532,11 @@
             
             try {
                 const reverseUrl = `http://127.0.0.1:8000/api/v1/reverse?lat=${lat}&lon=${lng}`;
-                const reverseResponse = await fetch(reverseUrl);
+                
+                // تغییر اعمال‌شده: تزریق کلید دسترسی به هدر درخواست آدرس‌یابی معکوس
+                const reverseResponse = await fetch(reverseUrl, {
+                    headers: { 'X-API-Key': MAP_API_KEY }
+                });
                 const data = await reverseResponse.json();
                 
                 if (!data || !data.address) {
@@ -543,35 +563,32 @@
         // ==========================================
         // منطق دکمه‌های فیلتر سریع مکان‌ها (POI - پورت 8000)
         // ==========================================
-        let poiMarkers = []; // آرایه برای ذخیره پین‌های آبی مکان‌های پیدا شده
+        let poiMarkers = [];
 
-        // شنود کلیک روی دکمه‌های فیلتر سریع در بالای نقشه
         document.querySelectorAll('.cat-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const category = btn.getAttribute('data-category');
                 
-                // رفتار کلیک تکراری: اگر دکمه فعال دوباره کلیک شد، غیرفعال شود و پین‌ها پاک شوند
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
                     clearPoiMarkers();
                     return;
                 }
 
-                // فعال کردن دکمه فیلتر کلیک شده و غیرفعال کردن بقیه دکمه‌ها
                 document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
 
-                // ۱. دریافت موقعیت فعلی مرکز نقشه کاربر
                 const center = map.getCenter();
 
                 try {
-                    // ۲. استعلام زنده نزدیک‌ترین مکان‌ها از وب‌سرویس پایتون ( Fast API پورت 8000 )
-                    // فیلتر ۵ کیلومتری با محدودیت دریافت ۱۵ نتیجه
                     const url = `http://127.0.0.1:8000/api/v1/pois/nearest?lat=${center.lat}&lon=${center.lng}&category=${category}&radius=5000&limit=15`;
-                    const response = await fetch(url);
+                    
+                    // تغییر اعمال‌شده: تزریق کلید دسترسی به هدر درخواست دریافت POIها
+                    const response = await fetch(url, {
+                        headers: { 'X-API-Key': MAP_API_KEY }
+                    });
                     const data = await response.json();
 
-                    // پاک کردن پین‌های آبی قدیمی از روی نقشه
                     clearPoiMarkers();
 
                     if (data.length === 0) {
@@ -579,19 +596,15 @@
                         return;
                     }
 
-                    // ۳. رسم پین‌های آبی‌رنگ به همراه پاپ‌آپ‌های اطلاعات فارسی
                     data.forEach(item => {
-                        // ساخت بدنه پاپ‌آپ فارسی با نام و فاصله دقیق به متر
                         const popup = new maplibregl.Popup({ offset: 25 })
                             .setHTML(`<b>${item.name}</b><br/><span style="font-size:10px; color:#ffa042;">📏 فاصله: ${item.distance_meters.toFixed(0)} متر</span>`);
 
-                        // ایجاد پین آبی رنگ مخصوص POIها
                         const marker = new maplibregl.Marker({ color: '#1e88e5' }) // آبی
                             .setLngLat([item.lon, item.lat])
                             .setPopup(popup)
                             .addTo(map);
 
-                        // ذخیره پین در آرایه برای پاکسازی در کلیک‌های بعدی
                         poiMarkers.push(marker);
                     });
 
@@ -602,7 +615,6 @@
             });
         });
 
-        // تابع کمکی پاک کردن پین‌های آبی مکان‌های قدیمی از روی نقشه
         function clearPoiMarkers() {
             poiMarkers.forEach(marker => marker.remove());
             poiMarkers = [];
