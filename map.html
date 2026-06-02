@@ -216,11 +216,14 @@
         // تعریف کلید دسترسی فعال صادر شده توسعه‌دهنده
         const MAP_API_KEY = "yk_live_ctrFT2gB-IVAsPNP0q_QsX1VTml6qXVTaSDhkOcv630";
 
+        // ۱. آدرس‌دهی پویای دریافت مشخصات استایل ۳بعدی برداری از درگاه پایتون (پورت 8000)
+        const vectorStyleUrl = `http://localhost:8000/api/v1/styles/default?api_key=${MAP_API_KEY}`;
+
         const map = new maplibregl.Map({
             container: 'map',
             center: [51.404, 35.715],
             zoom: 12,
-            // تغییر اعمال‌شده: تزریق هدر کلید دسترسی به تمام درخواست‌های تایل‌سرور و فونت‌ها (پورت 8000)
+            // تزریق هدر کلید دسترسی به تمام درخواست‌های تایل‌سرور و فونت‌ها (پورت 8000)
             transformRequest: (url, resourceType) => {
                 if (url.includes("127.0.0.1:8000") || url.includes("localhost:8000")) {
                     return {
@@ -230,38 +233,7 @@
                 }
                 return { url: url };
             },
-            style: {
-                "version": 8,
-                "name": "Advanced Iran Style",
-                "glyphs": "http://127.0.0.1:3000/font/{fontstack}/{range}",
-                "sources": {
-                    "iran_polygons": {
-                        "type": "vector",
-                        "tiles": ["http://127.0.0.1:8000/api/v1/tiles/planet_osm_polygon/{z}/{x}/{y}"]
-                    },
-                    "iran_lines": {
-                        "type": "vector",
-                        "tiles": ["http://127.0.0.1:8000/api/v1/tiles/planet_osm_line/{z}/{x}/{y}"]
-                    },
-                    "iran_points": {
-                        "type": "vector",
-                        "tiles": ["http://127.0.0.1:8000/api/v1/tiles/planet_osm_point/{z}/{x}/{y}"]
-                    }
-                },
-                "layers": [
-                    { "id": "background", "type": "background", "paint": { "background-color": "#f4f1ea" } },
-                    { "id": "residential-areas", "type": "fill", "source": "iran_polygons", "source-layer": "planet_osm_polygon", "filter": ["==", "landuse", "residential"], "paint": { "fill-color": "#e5e0d8", "fill-opacity": 0.9 } },
-                    { "id": "parks-forests", "type": "fill", "source": "iran_polygons", "source-layer": "planet_osm_polygon", "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]], "paint": { "fill-color": "#d0e4cc" } },
-                    { "id": "water-bodies", "type": "fill", "source": "iran_polygons", "source-layer": "planet_osm_polygon", "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]], "paint": { "fill-color": "#aad3df" } },
-                    { "id": "motorway-casing", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]], "paint": { "line-color": "#e07a1b", "line-width": 4.5 } },
-                    { "id": "motorway-core", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]], "paint": { "line-color": "#ffa042", "line-width": 2.5 } },
-                    { "id": "primary-casing", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]], "paint": { "line-color": "#d6a100", "line-width": 3.5 } },
-                    { "id": "primary-core", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]], "paint": { "line-color": "#ffe082", "line-width": 2 } },
-                    { "id": "minor-roads", "type": "line", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]], "paint": { "line-color": "#ffffff", "line-width": 1.2 } },
-                    { "id": "road-labels", "type": "symbol", "source": "iran_lines", "source-layer": "planet_osm_line", "filter": ["all", ["has", "name"], ["has", "highway"]], "layout": { "text-field": ["get", "name"], "text-font": ["Vazirmatn Thin", "Arial Regular"], "text-size": 11, "symbol-placement": "line" }, "paint": { "text-color": "#2c2c2c", "text-halo-color": "#ffffff", "text-halo-width": 1.5 } },
-                    { "id": "poi-labels", "type": "symbol", "source": "iran_points", "source-layer": "planet_osm_point", "filter": ["has", "name"], "layout": { "text-field": ["get", "name"], "text-font": ["Vazirmatn Thin", "Arial Regular"], "text-size": 11, "symbol-placement": "point", "text-padding": 10 }, "paint": { "text-color": "#d32f2f", "text-halo-color": "#ffffff", "text-halo-width": 2 } }
-                ]
-            }
+            style: vectorStyleUrl
         });
 
         map.addControl(new maplibregl.NavigationControl());
@@ -316,6 +288,7 @@
         
         async function executeSearch() {
             const query = document.getElementById('search-input').value.trim();
+            // تغییر اعمال‌شده: اصلاح غلط تایپی نام متغیر از MathContainer به resultsContainer
             const resultsContainer = document.getElementById('search-results');
             if (!query) { resultsContainer.innerHTML = ''; return; }
             
@@ -390,7 +363,7 @@
         document.getElementById('search-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') executeSearch(); });
 
         // ==========================================
-        // مسیریابی با کلیک چپ (OSRM - بدون نیاز به API Key چون روی پورت ۵۰۰۰ است)
+        // 🚗 تغییر اعمال‌شده: مسیریابی هوشمند و امن تحت درگاه پورت 8000 پایتون (جایگزین پورت مستقیم 5000)
         // ==========================================
         let startCoords = null;
         let endCoords = null;
@@ -411,9 +384,12 @@
         }
 
         async function calculateRoute(start, end, showPanel = true) {
-            const url = `http://127.0.0.1:5000/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson&steps=true`;
+            // فراخوانی اندپوینت مسیریابی پایتون (پورت 8000) به جای OSRM مستقیم
+            const url = `http://127.0.0.1:8000/api/v1/route/directions?start_lat=${start[1]}&start_lon=${start[0]}&end_lat=${end[1]}&end_lon=${end[0]}`;
             try {
-                const response = await fetch(url);
+                const response = await fetch(url, {
+                    headers: { 'X-API-Key': MAP_API_KEY } 
+                });
                 const data = await response.json();
                 if (data.code !== 'Ok') {
                     alert('مسیر جاده‌ای پیدا نشد!');

@@ -1,10 +1,9 @@
 # app/api/v1/endpoints/reverse.py
 import re
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, Query, Depends
 from app.services.postgis_service import postgis_service
-from app.services.nominatim import nominatim_service
 from app.models.api_key import APIKey
-from app.api.v1.dependencies import get_api_key  # وارد کردن وابستگی کلید دسترسی
+from app.api.v1.dependencies import get_api_key
 
 router = APIRouter()
 
@@ -17,7 +16,7 @@ def convert_digits_to_persian(text: str) -> str:
 def is_numeric_plate(text: str) -> bool:
     if not text:
         return False
-    clean_text = text.strip()
+    clean_text = str(text).strip()
     if re.match(r'^[\d]{2,5}$|^\d+[-\s]?\d+$', clean_text):
         return True
     persian_letters = re.findall(r'[آ-ی]', clean_text)
@@ -33,94 +32,110 @@ def clean_city_name(city: str) -> str:
     city = re.sub(r'^بخش\s+مرکزی\s+', '', city)
     return city
 
-@router.get("", summary="آدرس‌یابی معکوس هوشمند و دقیق")
+def get_landmark_prefix(amenity: str, shop: str) -> str:
+    """تولید توصیف‌گر فارسی هوشمند برای لندمارک‌های مجاور"""
+    if amenity == 'mosque':
+        return "جنب مسجد"
+    elif amenity in ['hospital', 'clinic']:
+        return "نزدیک بیمارستان"
+    elif amenity == 'pharmacy':
+        return "جنب داروخانه"
+    elif amenity in ['bank', 'atm']:
+        return "نزدیک بانک"
+    elif amenity in ['school', 'university']:
+        return "نزدیک مدرسه/دانشگاه"
+    elif shop in ['supermarket', 'convenience']:
+        return "جنب سوپرمارکت"
+    elif shop == 'mall' or amenity == 'mall':
+        return "نزدیک مرکز خرید"
+    return "نزدیک"
+
+@router.get("", summary="آدرس‌یابی معکوس هوشمند بومی و فوق دقیق")
 async def reverse_geocoding(
     lat: float = Query(..., description="عرض جغرافیایی نقطه"),
     lon: float = Query(..., description="طول جغرافیایی نقطه"),
     include_poi: bool = Query(False, description="آیا نام اماکن تجاری در آدرس نمایش داده شود؟"),
-    api_key: APIKey = Depends(get_api_key)  # اجباری کردن ارائه کلید معتبر
+    api_key: APIKey = Depends(get_api_key)
 ):
-    # ۱. استعلام هوشمند با بافرهای چندمرحله‌ای
+    # ۱. استخراج ۱۰۰٪ بومی، آفلاین و فوق‌سریع اطلاعات سلسله‌مراتبی از PostGIS دیتابیس iran_map
     smart_result = postgis_service.smart_reverse_geocode(lat=lat, lon=lon)
     
-    # ۲. استعلام جزئیات از Nominatim
-    try:
-        nominatim_data = nominatim_service.reverse_geocode(lat=lat, lon=lon)
-    except RuntimeError as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    if not smart_result:
+        return {"address": "آدرسی یافت نشد", "source_type": "none"}
 
-    address = nominatim_data.get("address", {})
-    
-    # ۳. ساخت آدرس با اولویت داده‌های دقیق
+    # ۲. ساختاردهی آدرس سلسله‌مراتب کارتوگرافی بومی ایران
     parts = []
     
-    # استان
-    if "state" in address:
-        state = re.sub(r'^استان\s+', '', address["state"])
-        parts.append(state)
+    # الف) استان
+    if smart_result.get('province'):
+        province = re.sub(r'^استان\s+', '', smart_result['province'])
+        parts.append(province)
     
-    # شهر
-    city = address.get("city", address.get("town", address.get("village")))
-    if city:
-        city = clean_city_name(city)
+    # ب) شهر
+    if smart_result.get('city'):
+        city = clean_city_name(smart_result['city'])
         parts.append(city)
     
-    # منطقه
-    suburb = address.get("suburb")
-    if suburb:
-        clean_suburb = suburb.replace(" شهر تهران", "").replace("منطقه ", "منطقهٔ ")
-        parts.append(clean_suburb)
+    # ج) منطقه شهرداری
+    if smart_result.get('district'):
+        district = smart_result['district'].replace(" شهر تهران", "").replace("منطقه ", "منطقهٔ ")
+        parts.append(district)
 
-    # محله
-    neighbourhood = address.get("neighbourhood")
-    if neighbourhood and neighbourhood != suburb:
-        if not neighbourhood.startswith("محلهٔ"):
+    # د) محله دقیق
+    if smart_result.get('neighbourhood'):
+        neighbourhood = smart_result['neighbourhood']
+        if not neighbourhood.startswith("محلهٔ") and not neighbourhood.startswith("شهر"):
             parts.append(f"محلهٔ {neighbourhood}")
         else:
             parts.append(neighbourhood)
 
-    # خیابان (از داده‌های دقیق PostGIS)
-    street_name = None
-    if smart_result and smart_result.get('street_name'):
-        street_name = smart_result['street_name']
-        parts.append(street_name)
-    elif "road" in address:
-        street_name = address["road"]
-        parts.append(street_name)
+    # هـ) بزرگراه / بلوار شریانی اصلی
+    if smart_result.get('highway_street'):
+        parts.append(smart_result['highway_street'])
 
-    # پلاک (از داده‌های دقیق PostGIS یا Nominatim)
-    house_number = None
-    if smart_result and smart_result.get('house_number'):
-        house_number = smart_result['house_number']
-    elif "house_number" in address:
-        house_number = address["house_number"]
-    
-    if house_number and is_numeric_plate(house_number):
-        persian_plate = convert_digits_to_persian(house_number)
-        parts.append(f"پلاک {persian_plate}")
+    # و) خیابان اصلی
+    if smart_result.get('major_street'):
+        major_street = smart_result['major_street']
+        if major_street != smart_result.get('highway_street'):
+            parts.append(major_street)
 
-    # نام مکان تجاری
-    poi_name = address.get("shop") or address.get("office") or address.get("amenity") or address.get("tourism")
-    
-    # ساخت آدرس نهایی
+    # ز) معبر فرعی (کوچه / بن‌بست)
+    if smart_result.get('minor_street'):
+        minor_street = smart_result['minor_street']
+        if minor_street != smart_result.get('major_street') and minor_street != smart_result.get('highway_street'):
+            parts.append(minor_street)
+
+    # ح) نام مجتمع مسکونی، اداری، تجاری یا برج
+    if smart_result.get('building_name'):
+        parts.append(smart_result['building_name'])
+
+    # ط) پلاک خانه
+    if smart_result.get('house_number'):
+        house_num = smart_result['house_number']
+        if is_numeric_plate(str(house_num)):
+            persian_plate = convert_digits_to_persian(str(house_num))
+            parts.append(f"پلاک {persian_plate}")
+
+    # ی) توصیف‌گر موقعیت نسبی مجاور (لندمارک)
+    if smart_result.get('landmark_name'):
+        prefix = get_landmark_prefix(
+            smart_result.get('landmark_amenity') or '', 
+            smart_result.get('landmark_shop') or ''
+        )
+        parts.append(f"{prefix} {smart_result['landmark_name']}")
+
+    # ساخت آدرس زنجیره‌ای کامل فارسی
     final_address = "، ".join(parts)
-
-    if include_poi and poi_name:
-        final_address = f"{final_address}، {poi_name}"
 
     response = {
         "address": final_address,
-        "nearest_street": street_name,
-        "distance_to_street_meters": smart_result.get('distance') if smart_result else None,
-        "confidence_score": smart_result.get('final_score') if smart_result else None,
-        "source_type": smart_result.get('source_type') if smart_result else None,
-        "raw_address_details": address
+        "nearest_street": smart_result.get('minor_street') or smart_result.get('major_street') or smart_result.get('highway_street'),
+        "parent_street": smart_result.get('major_street') or smart_result.get('highway_street'),
+        "building_name": smart_result.get('building_name'),
+        "landmark": f"{prefix} {smart_result['landmark_name']}" if smart_result.get('landmark_name') else None,
+        "distance_to_street_meters": smart_result.get('distance'),
+        "confidence_score": smart_result.get('final_score'),
+        "source_type": smart_result.get('source_type'),
     }
-    
-    if poi_name:
-        response["place_name"] = poi_name
-    
-    if smart_result and smart_result.get('approx_house_number'):
-        response["approx_house_number"] = smart_result.get('approx_house_number')
     
     return response

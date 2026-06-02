@@ -17,7 +17,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# تنظیمات CORS
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # در تولید، آدرس‌های خاص را قرار دهید

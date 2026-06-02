@@ -12,120 +12,166 @@ class PostGISService:
 
     def smart_reverse_geocode(self, lat: float, lon: float) -> dict:
         """
-        آدرس‌یابی معکوس هوشمند با بافرهای چندمرحله‌ای و امتیازدهی ترکیبی
+        آدرس‌یابی معکوس پیشرفته، سلسله‌مراتب معابر و لندمارک‌های مجاور بر پایه PostGIS خالص
         """
-        # بافرهای مرحله‌ای برای جستجوی گسترده‌تر
+        # بافرهای متغیر متوالی
         adaptive_buffers = [30, 60, 120, 250, 500]
         
         best_result = None
         best_confidence = -1
         
         for buffer_meters in adaptive_buffers:
+            # کوئری مهندسی‌شده و یکپارچه بدون نیاز به فیلد tags یا ستون‌های هدر هس‌تور
             query = """
-                WITH point_geom AS (
-                    SELECT ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), 3857) as geom
-                ),
-                -- جستجو در نقاط آدرس‌دار (دقیق‌ترین)
-                address_points AS (
+                WITH params AS (
                     SELECT 
-                        "addr:housenumber" as house_number,
-                        "addr:street" as street_name,
-                        "addr:city" as city,
-                        ST_Distance(way, (SELECT geom FROM point_geom)) as distance,
-                        way,
-                        100 as confidence,
-                        'point' as source_type
-                    FROM planet_osm_point
-                    WHERE "addr:housenumber" IS NOT NULL 
-                      AND "addr:street" IS NOT NULL
-                      AND ST_DWithin(way, (SELECT geom FROM point_geom), %s)
+                        ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), 3857) as geom,
+                        %s::double precision as buffer
                 ),
-                -- جستجو در خطوط خیابان با امتیازدهی (دقت متوسط)
+                -- ۱. یافتن نام دقیق مجتمع مسکونی، برج، پاساژ یا ساختمان از لایه پلیگون‌ها
+                building_complex AS (
+                    SELECT 
+                        name as b_name,
+                        ST_Distance(way, (SELECT geom FROM params)) as dist
+                    FROM planet_osm_polygon
+                    WHERE building IS NOT NULL 
+                      AND name IS NOT NULL AND name != ''
+                      AND ST_DWithin(way, (SELECT geom FROM params), (SELECT buffer FROM params))
+                    ORDER BY dist ASC
+                    LIMIT 1
+                ),
+                -- ۲. نزدیک‌ترین کوچه، بن‌بست یا خیابان محلی فرعی (Minor Road) در فاصله کوتاه
+                nearest_minor_road AS (
+                    SELECT 
+                        name as road_name,
+                        highway,
+                        ST_Distance(way, (SELECT geom FROM params)) as dist,
+                        way
+                    FROM planet_osm_line
+                    WHERE highway IN ('residential', 'living_street', 'service', 'unclassified', 'footway', 'path')
+                      AND name IS NOT NULL AND name != ''
+                      AND ST_DWithin(way, (SELECT geom FROM params), (SELECT buffer FROM params))
+                    ORDER BY dist ASC
+                    LIMIT 1
+                ),
+                -- ۳. نزدیک‌ترین خیابان اصلی/بلوار شریانی منتهی یا مجاور به معبر بالا
+                nearest_major_road AS (
+                    SELECT 
+                        name as road_name,
+                        highway,
+                        ST_Distance(way, (SELECT geom FROM params)) as dist,
+                        way
+                    FROM planet_osm_line
+                    WHERE highway IN ('motorway', 'trunk', 'primary', 'secondary', 'tertiary')
+                      AND name IS NOT NULL AND name != ''
+                      AND ST_DWithin(way, (SELECT geom FROM params), (SELECT buffer FROM params) * 2.5) -- بافر بزرگتر برای خیابان اصلی
+                    ORDER BY dist ASC
+                    LIMIT 1
+                ),
+                -- ۴. ادغام اطلاعات خطوط معابر فرعی و اصلی
                 street_lines AS (
                     SELECT 
-                        NULL as house_number,
-                        name as street_name,
-                        NULL as city,
-                        ST_Distance(way, (SELECT geom FROM point_geom)) as distance,
-                        way,
-                        CASE 
-                            WHEN highway IN ('primary', 'secondary', 'tertiary') THEN 80
-                            WHEN highway IN ('residential', 'living_street') THEN 70
-                            WHEN highway IN ('unclassified', 'service') THEN 50
-                            ELSE 30
-                        END as confidence,
-                        'line' as source_type
-                    FROM planet_osm_line
-                    WHERE highway IS NOT NULL 
-                      AND name IS NOT NULL
-                      AND name != ''
-                      AND ST_DWithin(way, (SELECT geom FROM point_geom), %s)
+                        (SELECT road_name FROM nearest_minor_road) as minor_street,
+                        (SELECT road_name FROM nearest_major_road) as major_street,
+                        COALESCE((SELECT dist FROM nearest_minor_road), (SELECT dist FROM nearest_major_road)) as distance
+                    WHERE EXISTS (SELECT 1 FROM nearest_minor_road) OR EXISTS (SELECT 1 FROM nearest_major_road)
                 ),
-                -- جستجو در پلی‌گون‌های محله (کمترین دقت)
+                -- ۵. یافتن محله دقیق (neighbourhood) از لایه پلیگون‌ها با محاسبات مساحتی
                 neighbourhoods AS (
                     SELECT 
-                        NULL as house_number,
-                        name as street_name,
-                        NULL as city,
-                        ST_Distance(way, (SELECT geom FROM point_geom)) as distance,
-                        way,
-                        40 as confidence,
-                        'polygon' as source_type
+                        name as neighbourhood_name,
+                        ST_Distance(way, (SELECT geom FROM params)) as distance
                     FROM planet_osm_polygon
-                    WHERE (boundary = 'administrative' OR place = 'suburb' OR place = 'neighbourhood')
+                    WHERE (place IN ('neighbourhood', 'quarter', 'suburb') OR landuse = 'residential')
                       AND name IS NOT NULL
-                      AND ST_DWithin(way, (SELECT geom FROM point_geom), %s)
+                      AND ST_DWithin(way, (SELECT geom FROM params), (SELECT buffer FROM params) * 3) -- بافر بزرگتر برای محله
+                    ORDER BY distance ASC, ST_Area(way) ASC
+                    LIMIT 1
                 ),
-                -- ترکیب همه منابع
-                all_sources AS (
-                    SELECT * FROM address_points
-                    UNION ALL
-                    SELECT * FROM street_lines
-                    UNION ALL
-                    SELECT * FROM neighbourhoods
+                -- ۶. یافتن شاخص‌ترین مرکز خدمات عمومی مجاور (Landmark) در فاصله ۶۰ متری جهت راهنمای آدرس
+                adjacent_landmark AS (
+                    SELECT 
+                        name as landmark_name,
+                        amenity,
+                        shop,
+                        ST_Distance(way, (SELECT geom FROM params)) as dist
+                    FROM planet_osm_point
+                    WHERE name IS NOT NULL 
+                      AND (amenity IN ('mosque', 'bank', 'pharmacy', 'hospital', 'clinic', 'school', 'university', 'mall', 'cinema')
+                           OR shop IN ('supermarket', 'mall', 'department_store'))
+                      AND ST_DWithin(way, (SELECT geom FROM params), 60)
+                    ORDER BY dist ASC
+                    LIMIT 1
+                ),
+                -- ۷. استخراج استان (admin_level = 4)
+                province_data AS (
+                    SELECT name as province_name
+                    FROM planet_osm_polygon
+                    WHERE boundary = 'administrative' AND admin_level = '4'
+                      AND ST_Contains(way, (SELECT geom FROM params))
+                    LIMIT 1
+                ),
+                -- ۸. استخراج شهر (admin_level = 8)
+                city_data AS (
+                    SELECT name as city_name
+                    FROM planet_osm_polygon
+                    WHERE (boundary = 'administrative' AND admin_level = '8' OR place IN ('city', 'town'))
+                      AND ST_Contains(way, (SELECT geom FROM params))
+                    ORDER BY admin_level DESC
+                    LIMIT 1
+                ),
+                -- ۹. استخراج منطقه شهرداری (admin_level = 9 یا suburb)
+                district_data AS (
+                    SELECT name as district_name
+                    FROM planet_osm_polygon
+                    WHERE (boundary = 'administrative' AND admin_level = '9' OR place = 'suburb')
+                      AND ST_Contains(way, (SELECT geom FROM params))
+                    LIMIT 1
                 )
                 SELECT 
-                    house_number,
-                    street_name,
-                    city,
-                    ROUND(distance::numeric, 2) as distance,
-                    confidence,
-                    source_type,
-                    -- امتیاز نهایی: ترکیب فاصله + اطمینان منبع
-                    ROUND((confidence * (1 - LEAST(distance / %s, 0.95)))::numeric, 2) as final_score
-                FROM all_sources
-                WHERE distance <= %s
-                ORDER BY final_score DESC, distance ASC
-                LIMIT 1;
+                    (SELECT province_name FROM province_data) as province,
+                    (SELECT city_name FROM city_data) as city,
+                    (SELECT district_name FROM district_data) as district,
+                    (SELECT neighbourhood_name FROM neighbourhoods) as neighbourhood,
+                    (SELECT major_street FROM street_lines) as major_street,
+                    (SELECT minor_street FROM street_lines) as minor_street,
+                    (SELECT b_name FROM building_complex) as building_name,
+                    (SELECT landmark_name FROM adjacent_landmark) as landmark_name,
+                    (SELECT amenity FROM adjacent_landmark) as landmark_amenity,
+                    (SELECT shop FROM adjacent_landmark) as landmark_shop,
+                    ROUND((SELECT COALESCE((SELECT distance FROM street_lines), 0.0))::numeric, 2) as distance;
             """
             
             try:
                 conn = psycopg2.connect(self.db_url, cursor_factory=RealDictCursor)
                 cursor = conn.cursor()
                 
-                # حداکثر فاصله مجاز همان بافر فعلی است
-                max_dist = buffer_meters
-                cursor.execute(query, (lon, lat, buffer_meters, buffer_meters, buffer_meters, max_dist, max_dist))
+                # ارسال فیکس و دقیق ۳ پارامتر (طول، عرض، بافر)
+                cursor.execute(query, (lon, lat, buffer_meters))
                 result = cursor.fetchone()
                 
                 cursor.close()
                 conn.close()
                 
-                if result and result.get('street_name'):
-                    # اگر نتیجه بهتری پیدا کردیم، ذخیره کن
-                    if result.get('final_score', 0) > best_confidence:
-                        best_result = result
-                        best_confidence = result.get('final_score', 0)
+                if result and (result.get('minor_street') or result.get('major_street')):
+                    # امتیازدهی بر اساس غنای داده‌ها
+                    score = 40
+                    if result.get('minor_street'): score += 20
+                    if result.get('major_street'): score += 20
+                    if result.get('building_name'): score += 10
+                    if result.get('landmark_name'): score += 10
                     
-                    # اگر امتیاز بالای ۷۰ است، همین حالا برگردان
-                    if best_confidence > 70:
+                    if score > best_confidence:
+                        best_result = result
+                        best_confidence = score
+                    
+                    if best_confidence >= 80:
                         return best_result
                 
             except Exception as e:
                 logger.error(f"Smart reverse geocode error at buffer {buffer_meters}: {str(e)}")
                 continue
         
-        # اگر چیزی پیدا نشد، از تابع قبلی استفاده کن
         if not best_result:
             best_result = self.get_nearest_street(lat, lon, buffer_meters=500)
         
@@ -133,34 +179,25 @@ class PostGISService:
 
     def get_nearest_street(self, lat: float, lon: float, buffer_meters: float = 100.0) -> dict:
         """
-        پیدا کردن نزدیک‌ترین خیابان (نسخه بهبود یافته با امتیازدهی)
+        پیدا کردن نزدیک‌ترین خیابان (نسخه فالبک ثانویه)
         """
         query = """
             WITH point_geom AS (
                 SELECT ST_Transform(ST_SetSRID(ST_MakePoint(%s, %s), 4326), 3857) as geom
             )
             SELECT 
-                name,
+                name as major_street,
+                NULL as minor_street,
                 highway,
                 ROUND(ST_Distance(way, (SELECT geom FROM point_geom))::numeric, 2) as distance,
-                -- محاسبه پلاک تقریبی بر اساس نسبت موقعیت روی خیابان
                 ROUND(ST_LineLocatePoint(way, ST_ClosestPoint(way, (SELECT geom FROM point_geom)))::numeric * 100) as approx_house_number,
-                -- امتیاز کیفیت خیابان
-                CASE 
-                    WHEN highway IN ('primary', 'secondary', 'tertiary') THEN 100
-                    WHEN highway IN ('residential', 'living_street') THEN 85
-                    WHEN highway IN ('unclassified', 'service') THEN 60
-                    ELSE 40
-                END as quality_score,
                 'line' as source_type
             FROM planet_osm_line
             WHERE highway IS NOT NULL 
               AND name IS NOT NULL
               AND name != ''
               AND ST_DWithin(way, (SELECT geom FROM point_geom), %s)
-            ORDER BY 
-                quality_score DESC,
-                distance ASC
+            ORDER BY distance ASC
             LIMIT 1;
         """
         
@@ -179,7 +216,7 @@ class PostGISService:
 
     def get_nearest_pois(self, lat: float, lon: float, category: str = None, radius_meters: float = 5000.0, limit: int = 10) -> list:
         """
-        استخراج نزدیک‌ترین مکان‌ها با رتبه‌بندی
+        استخراج نزدیک‌ترین مکان‌ها با رتبه‌بندی اهمیت
         """
         query = """
             WITH point_geom AS (
@@ -193,7 +230,6 @@ class PostGISService:
                 ROUND(ST_Distance(way, (SELECT geom FROM point_geom))::numeric, 2) as distance_meters,
                 ST_Y(ST_Transform(way, 4326)) as lat,
                 ST_X(ST_Transform(way, 4326)) as lon,
-                -- رتبه‌بندی اهمیت
                 CASE 
                     WHEN amenity IN ('restaurant', 'cafe') THEN 90
                     WHEN shop IN ('supermarket', 'convenience') THEN 85
@@ -227,6 +263,5 @@ class PostGISService:
         except Exception as e:
             logger.error(f"PostGIS POI Query Error: {str(e)}")
             return []
-
 
 postgis_service = PostGISService()
