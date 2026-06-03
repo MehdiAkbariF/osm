@@ -10,11 +10,25 @@ from app.models.user import User
 from app.services.auth import auth_service
 
 def create_tables():
-    """حذف جداول قدیمی ناقص و ایجاد جداول کامل دیتابیس"""
-    print("📦 در حال حذف جداول قدیمی و ایجاد مجدد جداول...")
-    Base.metadata.drop_all(bind=engine)
+    """حذف جداول قدیمی ناقص با تکنیک بومی CASCADE و ایجاد جداول کامل دیتابیس"""
+    print("📦 در حال بازسازی جداول دیتابیس...")
+    
+    # استفاده از قابلیت بومی PostgreSQL DROP CASCADE برای قطع زنجیره رابطه‌ها
+    from sqlalchemy import text
+    with engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            # حذف فیزیکی و زنجیره‌ای تمام جداول قدیمی نقشه و یدکچی
+            connection.execute(text("DROP TABLE IF EXISTS locations, api_keys, users, user_locations CASCADE;"))
+            transaction.commit()
+            print("🗑️ جداول قدیمی با موفقیت حذف شدند (CASCADE)")
+        except Exception as e:
+            transaction.rollback()
+            print(f"⚠️ خطایی در حذف جداول قدیمی رخ داد: {e}")
+            
+    # ایجاد مجدد جداول با تمام فیلدهای پیشرفته جدید
     Base.metadata.create_all(bind=engine)
-    print("✅ جداول دیتابیس با موفقیت بازسازی شدند")
+    print("✅ جداول جدید دیتابیس با موفقیت ایجاد شدند")
 
 def create_admin():
     db = SessionLocal()

@@ -10,15 +10,9 @@ router = APIRouter()
 async def get_tile_json(
     request: Request,
     table: str,
-    api_key: APIKey = Depends(get_api_key) # 🔒 تایید کلید دسترسی
+    api_key: APIKey = Depends(get_api_key)
 ):
-    """
-    تولید پویا و استاندارد فایل مشخصات تایل‌سرور (TileJSON) بر اساس دامنه و کلید دسترسی جاری کلاینت
-    """
-    # محاسبه آدرس پایه پایتون به صورت پویا
     base_url = f"{request.url.scheme}://{request.url.netloc}/api/v1"
-    
-    # ساختار استاندارد بین‌المللی مشخصات نقشه برداری
     return {
         "tilejson": "2.2.0",
         "name": f"Vector Source: {table}",
@@ -37,7 +31,7 @@ async def get_tile(
     z: str, 
     x: str, 
     y: str,
-    api_key: APIKey = Depends(get_api_key) # 🔒 تایید کلید دسترسی
+    api_key: APIKey = Depends(get_api_key)
 ):
     # پاسخ هوشمند به تست‌های اولیه مپوتنیک
     if not (z.isdigit() and x.isdigit() and y.isdigit()):
@@ -51,13 +45,29 @@ async def get_tile(
     # دریافت تایل برداری از دیتابیس PostGIS
     tile_bytes, headers = await tile_service.get_vector_tile(table, z_int, x_int, y_int)
     
+    # اگر تایل فاقد داده بود، پاسخ 200 خالی بازگردان
     if not tile_bytes:
-        raise HTTPException(status_code=404, detail="تایل مورد نظر یافت نشد")
+        return Response(
+            content=b"",
+            media_type="application/x-protobuf",
+            headers={"Cache-Control": "public, max-age=86400"}
+        )
+
+    # ادغام هوشمند هدرها و حذف هدرهای طول، فشرده‌سازی و انتقال تداخل‌دار (حل قطعی کراش‌های دکودینگ)
+    response_headers = {**headers} if headers else {}
+    response_headers.pop("Content-Length", None)
+    response_headers.pop("content-length", None)
+    
+    # 🔑 حذف هدر فشرده‌سازی قدیمی چون httpx خودش فایل را از حالت فشرده خارج کرده است
+    response_headers.pop("Content-Encoding", None)
+    response_headers.pop("content-encoding", None)
+    response_headers.pop("Transfer-Encoding", None)
+    response_headers.pop("transfer-encoding", None)
+    
+    response_headers["Cache-Control"] = "public, max-age=86400"
 
     return Response(
         content=tile_bytes,
         media_type="application/x-protobuf",
-        headers={
-            "Cache-Control": "public, max-age=86400"
-        }
+        headers=response_headers
     )
