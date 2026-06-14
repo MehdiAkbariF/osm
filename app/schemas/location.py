@@ -1,6 +1,6 @@
 # app/schemas/location.py
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
+from typing import Optional, List
 from datetime import datetime
 
 class LocationBase(BaseModel):
@@ -14,11 +14,7 @@ class LocationBase(BaseModel):
     plaque: Optional[str] = Field(None, description="پلاک")
     unit: Optional[str] = Field(None, description="واحد")
     tell: Optional[str] = Field(None, description="تلفن تماس")
-    
-    # 🛠 رفع باگ خطای ۵۰۰: تبدیل به Optional تا در صورت NULL بودن در رکوردهای قدیمی خطا ندهد
     is_return_usage: Optional[bool] = Field(False, description="قابلیت مرجوعی کالا")
-    
-    metadata: Optional[Dict[str, Any]] = Field(None, description="اطلاعات قطعات و برندها به صورت JSON")
 
 class LocationCreate(LocationBase):
     address: Optional[str] = None
@@ -37,7 +33,6 @@ class LocationUpdate(BaseModel):
     unit: Optional[str] = None
     tell: Optional[str] = None
     is_return_usage: Optional[bool] = None
-    metadata: Optional[Dict[str, Any]] = None
     address: Optional[str] = None
     city: Optional[str] = None
     province: Optional[str] = None
@@ -56,8 +51,8 @@ class LocationResponse(LocationBase):
     city: Optional[str]
     province: Optional[str]
     postal_code: Optional[str]
-    status: str
-    is_active: bool
+    status: Optional[str] = "pending"
+    is_active: Optional[bool] = True
     created_by: Optional[int]
     created_at: datetime
     updated_at: Optional[datetime]
@@ -66,7 +61,6 @@ class LocationResponse(LocationBase):
 
     class Config:
         from_attributes = True
-        orm_mode = True # برای سازگاری با هر دو نسخه پیدانتیک
 
 class LocationAdminResponse(LocationResponse):
     creator_name: Optional[str] = None

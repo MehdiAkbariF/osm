@@ -3,7 +3,6 @@ import math
 from sqlalchemy.orm import Session
 from app.models.location import Location
 from app.schemas.location import LocationCreate, LocationUpdate
-from app.services.postgis_service import postgis_service
 from datetime import datetime
 from typing import Optional, List
 
@@ -13,15 +12,14 @@ class LocationService:
     def create_location(db: Session, location_data: LocationCreate, user_id: Optional[int]) -> Location:
         loc_dict = location_data.model_dump(exclude_unset=True) if hasattr(location_data, 'model_dump') else location_data.dict(exclude_unset=True)
         
-        # 🛠 تغییر کلیدی: تبدیل کلید به meta_data برای ذخیره ایمن در دیتابیس
-        if "metadata" in loc_dict:
-            loc_dict["meta_data"] = loc_dict.pop("metadata")
-            
         loc_dict.pop("created_by", None)
         loc_dict.pop("status", None)
         loc_dict.pop("is_active", None)
         
         try:
+            # انتقال ایمپورت به داخل متد برای حل مشکل ایمپورت چرخشی (Circular Import)
+            from app.services.postgis_service import postgis_service
+            
             geo_info = postgis_service.smart_reverse_geocode(
                 lat=location_data.latitude, 
                 lon=location_data.longitude
@@ -85,12 +83,6 @@ class LocationService:
         if is_return_usage is not None:
             query = query.filter(Location.is_return_usage == is_return_usage)
 
-        # جستجو در فیلد JSON صحیح
-        if part_filter:
-            query = query.filter(Location.meta_data["parts"].contains([part_filter]))
-        if brand_filter:
-            query = query.filter(Location.meta_data["brand"] == brand_filter)
-
         all_locations = query.all()
 
         def calculate_distance(lat1, lon1, lat2, lon2):
@@ -119,8 +111,6 @@ class LocationService:
             return None
         
         update_data = location_data.model_dump(exclude_unset=True) if hasattr(location_data, 'model_dump') else location_data.dict(exclude_unset=True)
-        if "metadata" in update_data:
-            update_data["meta_data"] = update_data.pop("metadata")
             
         for field, value in update_data.items():
             setattr(location, field, value)

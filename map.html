@@ -1,9 +1,10 @@
+<!-- c:\Users\Raven\OSM\map.html -->
 <!DOCTYPE html>
 <html lang="fa" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>نقشه اختصاصی ایران - آدرس‌دهی و فیلتر هوشمند مکان‌ها</title>
+    <title>نقشه اختصاصی ایران - مدیریت لجستیک و انبارها (v2)</title>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: Tahoma, sans-serif; }
@@ -44,27 +45,7 @@
             font-family: inherit;
         }
         #search-button:hover { background: #e07a1b; }
-        
-        .search-mode-buttons {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-        }
-        .mode-btn {
-            flex: 1;
-            padding: 6px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 11px;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-        .mode-btn.active { background: #ffa042; color: white; }
-        .mode-btn:not(.active) { background: #f0f0f0; color: #333; }
-        .mode-btn:not(.active):hover { background: #e0e0e0; }
 
-        /* نوار فیلتر سریع مکان‌ها (POI) در بالای نقشه */
         #category-filter-container {
             position: absolute;
             top: 20px;
@@ -155,50 +136,34 @@
             border-right: 4px solid #ffa042;
             pointer-events: auto;
         }
-
-        .maplibregl-popup-content {
-            font-family: Tahoma, sans-serif;
-            font-size: 11px;
-            direction: rtl;
-            text-align: right;
-            border-radius: 6px;
-            padding: 10px 15px;
-        }
     </style>
 </head>
 <body>
 
-    <!-- باکس جستجوی چندحالته -->
     <div id="search-container">
         <div id="search-row">
-            <input type="text" id="search-input" placeholder="جستجوی مکان..." />
+            <input type="text" id="search-input" placeholder="جستجوی مکان بر اساس API v2..." />
             <button id="search-button">جستجو</button>
-        </div>
-        <div class="search-mode-buttons">
-            <button id="mode-viewport-btn" class="mode-btn active">📍 جستجو در محدوده دید</button>
-            <button id="mode-global-btn" class="mode-btn">🌍 جستجو در کل ایران</button>
         </div>
         <div id="search-results"></div>
     </div>
 
-    <!-- نوار فیلتر سریع مکان‌ها (POI) در بالای نقشه -->
     <div id="category-filter-container">
-        <button class="cat-btn" data-category="fuel">⛽ پمپ بنزین</button>
-        <button class="cat-btn" data-category="atm">🏧 عابر بانک</button>
-        <button class="cat-btn" data-category="hospital">🏥 بیمارستان</button>
-        <button class="cat-btn" data-category="restaurant">🍔 رستوران</button>
+        <button class="cat-btn" data-store-id="1">🏢 انبارهای فروشگاه ۱</button>
+        <button class="cat-btn" data-store-id="2">🏢 انبارهای فروشگاه ۲</button>
+        <button class="cat-btn" data-store-id="3">🏢 انبارهای فروشگاه ۳</button>
     </div>
 
     <div id="info-box">
-        <b>✨ نقشه اختصاصی یودکچی</b><br/>
-        ✅ کلیک چپ: تعیین مبدا (سبز) و مقصد (قرمز) برای مسیریابی<br/>
-        ✅ کلیک راست: دریافت آدرس دقیق نقطه<br/>
-        <span style="color:#ffa042;">🔍 هرچه زوم کنید، جزئیات بیشتری می‌بینید</span>
+        <b>✨ نقشه اختصاصی یودکچی (نسخه ۲)</b><br/>
+        ✅ کلیک چپ: تعیین مبدا (سبز) و مقصد (قرمز) برای مسیریابی جاده‌ای<br/>
+        ✅ کلیک راست: دریافت آدرس معکوس نقطه از پایتون<br/>
+        <span style="color:#ffa042;">🔍 زوم بیشتر = جزئیات دقیق‌تر برداری</span>
     </div>
 
     <div id="address-box" style="display: none;">
         <span class="close-address" onclick="document.getElementById('address-box').style.display='none';">✕</span>
-        <strong>📍 آدرس دقیق مکان</strong>
+        <strong>📍 آدرس دقیق مکان (v2)</strong>
         <div id="address-text">در حال دریافت آدرس...</div>
         <div id="address-coords" class="address-coord"></div>
     </div>
@@ -213,67 +178,78 @@
             true
         );
 
-        // تعریف کلید دسترسی فعال صادر شده توسعه‌دهنده
         const MAP_API_KEY = "yk_live_ctrFT2gB-IVAsPNP0q_QsX1VTml6qXVTaSDhkOcv630";
-
-        // ۱. آدرس‌دهی پویای دریافت مشخصات استایل ۳بعدی برداری از درگاه پایتون (پورت 8000)
-        const vectorStyleUrl = `http://localhost:8000/api/v1/styles/default?api_key=${MAP_API_KEY}`;
-
-        const map = new maplibregl.Map({
-            container: 'map',
-            center: [51.404, 35.715],
-            zoom: 12,
-            // تزریق هدر کلید دسترسی به تمام درخواست‌های تایل‌سرور و فونت‌ها (پورت 8000)
-            transformRequest: (url, resourceType) => {
-                if (url.includes("127.0.0.1:8000") || url.includes("localhost:8000")) {
-                    return {
-                        url: url,
-                        headers: { 'X-API-Key': MAP_API_KEY }
-                    };
-                }
-                return { url: url };
-            },
-            style: vectorStyleUrl
-        });
-
-        map.addControl(new maplibregl.NavigationControl());
-
-        // ==========================================
-        // توابع کمکی آدرس‌دهی هوشمند (ویژه باکس جستجو)
-        // ==========================================
-        function cleanSuburb(suburb) {
-            if (!suburb) return '';
-            return suburb.replace(' شهر تهران', '').replace('منطقه ', 'منطقهٔ ');
-        }
-
-        function buildCleanAddress(addressData) {
-            if (!addressData || !addressData.address) {
-                return addressData?.display_name || 'آدرسی یافت نشد';
-            }
-            const addr = addressData.address;
-            const parts = [];
-            if (addr.state) parts.push(addr.state); 
-            if (addr.county && addr.county !== addr.state) parts.push(addr.county);
-            if (addr.city && addr.city !== addr.county) parts.push(addr.city);
-            if (addr.suburb) {
-                const clean = cleanSuburb(addr.suburb);
-                if (clean && !parts.includes(clean)) parts.push(clean);
-            }
-            if (addr.neighbourhood && addr.neighbourhood !== addr.suburb) parts.push(addr.neighbourhood);
-            if (addr.road && !parts.includes(addr.road)) parts.push(addr.road);
-            
-            const finalParts = [];
-            for (const part of parts) {
-                if (part && part !== '' && !finalParts.includes(part)) finalParts.push(part);
-            }
-            return finalParts.join('، ');
-        }
-
-        // ==========================================
-        // لایه منطق موتور جستجوی چندحالته متصل به پایتون ( FastAPI - پورت 8000 )
-        // ==========================================
+        const vectorStyleUrl = `http://localhost:8000/api/v2/map/styles/default?api_key=${MAP_API_KEY}`;
+        
+        let map;
         let searchMarker = null;
-        let currentSearchMode = 'viewport';
+        let startCoords = null;
+        let endCoords = null;
+        let startMarker = null;
+        let endMarker = null;
+        let warehouseMarkers = [];
+
+        // الف) بارگذاری غیرهمزمان استایل رسمی شما و انطباق پویای سورس‌ها و فونت‌ها به نسخه ۲
+        async function initMap() {
+            try {
+                const response = await fetch(vectorStyleUrl, {
+                    headers: { 'X-API-Key': MAP_API_KEY }
+                });
+                const style = await response.json();
+
+                // ۱. هدایت تمام سورس‌های مجزای استایل شما به تک‌ایندپوینت پروکسی شده برداری v2 پایتون
+                const v2TileUrl = "http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}";
+                
+                style.sources = {
+                    "iran_polygons": {
+                        "type": "vector",
+                        "tiles": [v2TileUrl]
+                    },
+                    "iran_lines": {
+                        "type": "vector",
+                        "tiles": [v2TileUrl]
+                    },
+                    "iran_points": {
+                        "type": "vector",
+                        "tiles": [v2TileUrl]
+                    }
+                };
+
+                // ۲. تصحیح فرمت آدرس فونت‌های محلی پورت 3000 مارتین طبق ساختار پیش‌فرض default.json شما
+                style.glyphs = "http://localhost:3000/font/{fontstack}/{range}";
+
+                // ۳. 🔴 اصلاح حیاتی فونت‌ها: حذف ترکیب دوگانه جهت جلوگیری از خطای ۴۰۴ در مارتین
+                // تمام لایه‌ها را ملزم می‌کنیم فقط از فونت زیبای فارسی "Vazirmatn Thin" استفاده کنند.
+                if (style.layers) {
+                    style.layers.forEach(layer => {
+                        if (layer.layout && layer.layout["text-font"]) {
+                            layer.layout["text-font"] = ["Vazirmatn Thin"];
+                        }
+                    });
+                }
+
+                // ۴. مقداردهی نقشه با استایل بهینه‌سازی شده شما
+                map = new maplibregl.Map({
+                    container: 'map',
+                    center: [51.404, 35.715], // لود مرکز تهران
+                    zoom: 11,
+                    style: style
+                });
+
+                map.addControl(new maplibregl.NavigationControl());
+                
+                setupMapEvents();
+
+            } catch (error) {
+                console.error("خطا در بارگذاری اولیه و تنظیم تایل‌های نقشه:", error);
+            }
+        }
+
+        function buildCleanAddress(item) {
+            if (typeof item === 'string') return item;
+            if (item.address) return item.address;
+            return item.display_name || 'آدرس نامشخص';
+        }
         
         function calculateDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
@@ -281,60 +257,102 @@
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
+                      Math.sin(dLon/2) * dLon/2;
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c;
         }
-        
+
+        function setupMapEvents() {
+            map.on('click', async (e) => {
+                const coords = [e.lngLat.lng, e.lngLat.lat];
+                if (!startCoords) {
+                    startCoords = coords;
+                    startMarker = new maplibregl.Marker({ color: '#2e7d32' }).setLngLat(startCoords).addTo(map);
+                } else if (!endCoords) {
+                    endCoords = coords;
+                    endMarker = new maplibregl.Marker({ color: '#d32f2f' }).setLngLat(endCoords).addTo(map);
+                    await calculateRoute(startCoords, endCoords, true);
+                } else {
+                    resetRouting();
+                    startCoords = coords;
+                    startMarker = new maplibregl.Marker({ color: '#2e7d32' }).setLngLat(startCoords).addTo(map);
+                }
+            });
+
+            const addressBox = document.getElementById('address-box');
+            const addressText = document.getElementById('address-text');
+            const addressCoords = document.getElementById('address-coords');
+
+            map.on('contextmenu', async (e) => {
+                e.preventDefault();
+                const lng = e.lngLat.lng;
+                const lat = e.lngLat.lat;
+                
+                addressBox.style.display = 'block';
+                addressText.innerHTML = 'در حال دریافت آدرس...';
+                addressCoords.innerHTML = `مختصات: ${lng.toFixed(6)} , ${lat.toFixed(6)}`;
+                
+                try {
+                    const reverseUrl = `http://127.0.0.1:8000/api/v2/map/reverse?lat=${lat}&lon=${lng}`;
+                    const reverseResponse = await fetch(reverseUrl, {
+                        headers: { 'X-API-Key': MAP_API_KEY }
+                    });
+                    const data = await reverseResponse.json();
+                    
+                    if (!data) {
+                        addressText.innerHTML = 'آدرسی برای این نقطه یافت نشد.';
+                        return;
+                    }
+                    addressText.innerHTML = typeof data === 'string' ? data : (data.address || data.display_name || 'نامشخص');
+                } catch (error) {
+                    console.error('خطا در آدرس‌یابی معکوس:', error);
+                    addressText.innerHTML = 'خطا در ارتباط با سرور آدرس‌یابی پایتون.';
+                }
+            });
+        }
+
         async function executeSearch() {
             const query = document.getElementById('search-input').value.trim();
-            // تغییر اعمال‌شده: اصلاح غلط تایپی نام متغیر از MathContainer به resultsContainer
             const resultsContainer = document.getElementById('search-results');
             if (!query) { resultsContainer.innerHTML = ''; return; }
             
             resultsContainer.innerHTML = '<div class="result-item">در حال جستجو...</div>';
             
             try {
-                let url = `http://127.0.0.1:8000/api/v1/search?q=${encodeURIComponent(query)}`;
-                
-                if (currentSearchMode === 'viewport') {
-                    const bounds = map.getBounds();
-                    const viewbox = `${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()},${bounds.getSouth()}`;
-                    url += `&mode=viewport&viewbox=${viewbox}`;
-                } else {
-                    url += `&mode=global`;
-                }
-
-                // تغییر اعمال‌شده: تزریق کلید دسترسی به هدر درخواست جستجو
-                const response = await fetch(url, {
-                    headers: { 'X-API-Key': MAP_API_KEY }
-                });
+                let url = `http://127.0.0.1:8000/api/v2/map/search?q=${encodeURIComponent(query)}`;
+                const response = await fetch(url, { headers: { 'X-API-Key': MAP_API_KEY } });
                 const data = await response.json();
+                
                 displaySearchResults(data);
                 
-                if (data.length === 0) {
-                    const modeText = currentSearchMode === 'viewport' ? 'محدوده دید' : 'کل ایران';
-                    resultsContainer.innerHTML = `<div class="result-item">مکانی برای "${query}" در ${modeText} یافت نشد.</div>`;
+                if (!data || data.length === 0) {
+                    resultsContainer.innerHTML = `<div class="result-item">مکانی برای "${query}" یافت نشد.</div>`;
                 }
             } catch (error) {
                 console.error("خطا در جستجو:", error);
-                resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به پلاتفرم اختصاصی نقشه!</div>';
+                resultsContainer.innerHTML = '<div class="result-item" style="color:red;">خطا در اتصال به پلاتفرم نقشه!</div>';
             }
         }
 
         function displaySearchResults(results) {
             const resultsContainer = document.getElementById('search-results');
             resultsContainer.innerHTML = '';
-            if (results.length === 0) return;
+            
+            const items = Array.isArray(results) ? results : [results];
+            if (items.length === 0 || !items[0]) return;
+
             const center = map.getCenter();
-            results.forEach(item => {
+            items.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'result-item';
-                const lat = parseFloat(item.lat);
-                const lon = parseFloat(item.lon);
+                
+                const lat = item.lat ? parseFloat(item.lat) : center.lat;
+                const lon = item.lon ? parseFloat(item.lon) : center.lng;
+                
                 const distance = calculateDistance(center.lat, center.lng, lat, lon);
                 const formattedAddress = buildCleanAddress(item);
-                div.innerHTML = `${formattedAddress}<span class="result-distance">(${distance.toFixed(1)} کیلومتر)</span>`;
+                
+                div.innerHTML = `${formattedAddress} <span class="result-distance">(${distance.toFixed(1)} کیلومتر)</span>`;
                 div.onclick = () => {
                     map.flyTo({ center: [lon, lat], zoom: 15, essential: true });
                     if (searchMarker) searchMarker.remove();
@@ -344,62 +362,39 @@
                 resultsContainer.appendChild(div);
             });
         }
-
-        document.getElementById('mode-viewport-btn').addEventListener('click', () => {
-            currentSearchMode = 'viewport';
-            document.getElementById('mode-viewport-btn').classList.add('active');
-            document.getElementById('mode-global-btn').classList.remove('active');
-            if (document.getElementById('search-input').value.trim()) executeSearch();
-        });
-        
-        document.getElementById('mode-global-btn').addEventListener('click', () => {
-            currentSearchMode = 'global';
-            document.getElementById('mode-global-btn').classList.add('active');
-            document.getElementById('mode-viewport-btn').classList.remove('active');
-            if (document.getElementById('search-input').value.trim()) executeSearch();
-        });
         
         document.getElementById('search-button').addEventListener('click', executeSearch);
         document.getElementById('search-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') executeSearch(); });
 
-        // ==========================================
-        // 🚗 تغییر اعمال‌شده: مسیریابی هوشمند و امن تحت درگاه پورت 8000 پایتون (جایگزین پورت مستقیم 5000)
-        // ==========================================
-        let startCoords = null;
-        let endCoords = null;
-        let startMarker = null;
-        let endMarker = null;
-
-        function removeRoutePanel() {
-            const panel = document.getElementById('route-panel');
-            if (panel) panel.remove();
-        }
-
-        function showRoutePanel(html) {
-            removeRoutePanel();
-            const panel = document.createElement('div');
-            panel.id = 'route-panel';
-            panel.innerHTML = html + `<div style="text-align: left; margin-top: 8px;"><span onclick="removeRoutePanel()" style="cursor:pointer; font-size:10px; color:#666;">بستن ✕</span></div>`;
-            document.body.appendChild(panel);
-        }
-
         async function calculateRoute(start, end, showPanel = true) {
-            // فراخوانی اندپوینت مسیریابی پایتون (پورت 8000) به جای OSRM مستقیم
-            const url = `http://127.0.0.1:8000/api/v1/route/directions?start_lat=${start[1]}&start_lon=${start[0]}&end_lat=${end[1]}&end_lon=${end[0]}`;
+            const url = `http://127.0.0.1:8000/api/v2/map/route`;
+            const payload = {
+                start_lat: parseFloat(start[1]),
+                start_lon: parseFloat(start[0]),
+                end_lat: parseFloat(end[1]),
+                end_lon: parseFloat(end[0])
+            };
+
             try {
                 const response = await fetch(url, {
-                    headers: { 'X-API-Key': MAP_API_KEY } 
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': MAP_API_KEY
+                    },
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
-                if (data.code !== 'Ok') {
-                    alert('مسیر جاده‌ای پیدا نشد!');
+                
+                if (!data || !data.routes || data.routes.length === 0) {
+                    alert('مسیر جاده‌ای بین این دو نقطه یافت نشد!');
                     return null;
                 }
 
-                const steps = data.routes[0].legs[0].steps;
+                const steps = data.routes[0].legs[0].steps || [];
                 const routeStreets = [];
                 steps.forEach((step, index) => {
-                    if (step.name && step.name !== '') {
+                    if (step.name) {
                         routeStreets.push({
                             order: index + 1,
                             street: step.name,
@@ -413,33 +408,18 @@
                 const lastStreet = routeStreets[routeStreets.length - 1];
                 const totalDistance = (data.routes[0].distance / 1000).toFixed(1);
                 const totalMinutes = Math.floor(data.routes[0].duration / 60);
-                const totalSeconds = Math.floor(data.routes[0].duration % 60);
 
                 if (showPanel) {
                     let panelHtml = `
                         <div style="direction: rtl;">
                             <div style="border-bottom: 1px solid #ffa042; padding-bottom: 8px; margin-bottom: 8px;">
-                                <b>🚗 خلاصه مسیر</b><br/>
-                                📏 فاصله: ${totalDistance} کیلومتر<br/>
-                                ⏱️ زمان: ${totalMinutes} دقیقه و ${totalSeconds} ثانیه
+                                <b>🚗 جزئیات مسیریابی هوشمند (v2)</b><br/>
+                                📏 فاصله جاده‌ای: ${totalDistance} کیلومتر<br/>
+                                ⏱️ زمان سفر تقریبی: ${totalMinutes} دقیقه
                             </div>
                             <div style="margin-bottom: 8px;">
-                                <b>📍 آخرین خیابان:</b> <span style="color:#ffa042;">${lastStreet?.street || 'نامشخص'}</span>
+                                <b>📍 معبر مقصد:</b> <span style="color:#ffa042;">${lastStreet?.street || 'ثبت نشده'}</span>
                             </div>
-                            <details style="font-size: 11px;">
-                                <summary style="cursor: pointer; color: #ffa042;">📋 لیست خیابان‌های مسیر (${routeStreets.length} مرحله)</summary>
-                                <div style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
-                                    ${routeStreets.map(s => `
-                                        <div style="padding: 6px 0; border-bottom: 1px solid #444;">
-                                            ${s.order}. <b>${s.street}</b><br/>
-                                            <span style="font-size: 10px; color: #aaa;">
-                                                ${(s.distance).toFixed(0)} متر • ${Math.floor(s.duration)} ثانیه
-                                                ${s.maneuver === 'turn' ? ' ↪️ گردش' : s.maneuver === 'depart' ? ' 🚀 شروع' : s.maneuver === 'arrive' ? ' 🏁 پایان' : ' ➡️ ادامه'}
-                                            </span>
-                                        </div>
-                                    `).join('')}
-                                </div>
-                            </details>
                         </div>
                     `;
                     showRoutePanel(panelHtml);
@@ -453,15 +433,12 @@
                     map.addLayer({
                         id: 'route-line', type: 'line', source: 'route',
                         layout: { 'line-join': 'round', 'line-cap': 'round' },
-                        paint: { 'line-color': '#0288d1', 'line-width': 6, 'line-opacity': 0.85 }
+                        paint: { 'line-color': '#ffa042', 'line-width': 6, 'line-opacity': 0.85 }
                     });
                 }
-                
-                return { streets: routeStreets, lastStreet: lastStreet?.street, totalDistance: data.routes[0].distance, totalDuration: data.routes[0].duration };
             } catch (error) {
-                console.error("خطا:", error);
-                alert("امکان ارتباط با سرور مسیریابی وجود ندارد!");
-                return null;
+                console.error("خطا در مسیریابی:", error);
+                alert("امکان برقراری ارتباط با سرور مسیریابی وجود ندارد!");
             }
         }
 
@@ -474,127 +451,61 @@
             removeRoutePanel();
         }
 
-        map.on('click', async (e) => {
-            const coords = [e.lngLat.lng, e.lngLat.lat];
-            if (!startCoords) {
-                startCoords = coords;
-                startMarker = new maplibregl.Marker({ color: '#2e7d32' }).setLngLat(startCoords).addTo(map);
-            } else if (!endCoords) {
-                endCoords = coords;
-                endMarker = new maplibregl.Marker({ color: '#d32f2f' }).setLngLat(endCoords).addTo(map);
-                await calculateRoute(startCoords, endCoords, true);
-            } else {
-                resetRouting();
-                startCoords = coords;
-                startMarker = new maplibregl.Marker({ color: '#2e7d32' }).setLngLat(startCoords).addTo(map);
-            }
-        });
-
-        // ==========================================
-        // آدرس کلیک راست (متصل به پلتفرم پایتون - پورت 8000)
-        // ==========================================
-        const addressBox = document.getElementById('address-box');
-        const addressText = document.getElementById('address-text');
-        const addressCoords = document.getElementById('address-coords');
-
-        map.on('contextmenu', async (e) => {
-            e.preventDefault();
-            const lng = e.lngLat.lng;
-            const lat = e.lngLat.lat;
-            
-            addressBox.style.display = 'block';
-            addressText.innerHTML = 'در حال دریافت آدرس...';
-            addressCoords.innerHTML = `مختصات: ${lng.toFixed(6)} , ${lat.toFixed(6)}`;
-            
-            try {
-                const reverseUrl = `http://127.0.0.1:8000/api/v1/reverse?lat=${lat}&lon=${lng}`;
-                
-                // تغییر اعمال‌شده: تزریق کلید دسترسی به هدر درخواست آدرس‌یابی معکوس
-                const reverseResponse = await fetch(reverseUrl, {
-                    headers: { 'X-API-Key': MAP_API_KEY }
-                });
-                const data = await reverseResponse.json();
-                
-                if (!data || !data.address) {
-                    addressText.innerHTML = 'آدرسی برای این نقطه یافت نشد.';
-                    return;
-                }
-                
-                let displayText = data.address;
-                if (data.nearest_street && data.distance_to_street_meters !== null) {
-                    displayText += `<br/><span style="font-size: 10px; color: #ffa042;">📍 نزدیک‌ترین معبر: ${data.nearest_street} (${data.distance_to_street_meters.toFixed(1)} متر)</span>`;
-                }
-                addressText.innerHTML = displayText;
-                
-            } catch (error) {
-                console.error('خطا در آدرس‌یابی معکوس:', error);
-                addressText.innerHTML = 'خطا در ارتباط با سرور آدرس‌یابی پایتون.';
-            }
-            
-            setTimeout(() => {
-                if (addressBox.style.display === 'block') addressBox.style.display = 'none';
-            }, 10000);
-        });
-
-        // ==========================================
-        // منطق دکمه‌های فیلتر سریع مکان‌ها (POI - پورت 8000)
-        // ==========================================
-        let poiMarkers = [];
-
         document.querySelectorAll('.cat-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
-                const category = btn.getAttribute('data-category');
+                const storeId = btn.getAttribute('data-store-id');
                 
                 if (btn.classList.contains('active')) {
                     btn.classList.remove('active');
-                    clearPoiMarkers();
+                    clearWarehouseMarkers();
                     return;
                 }
 
                 document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
 
-                const center = map.getCenter();
-
                 try {
-                    const url = `http://127.0.0.1:8000/api/v1/pois/nearest?lat=${center.lat}&lon=${center.lng}&category=${category}&radius=5000&limit=15`;
-                    
-                    // تغییر اعمال‌شده: تزریق کلید دسترسی به هدر درخواست دریافت POIها
-                    const response = await fetch(url, {
-                        headers: { 'X-API-Key': MAP_API_KEY }
-                    });
+                    const url = `http://127.0.0.1:8000/api/v2/warehouses/${storeId}`;
+                    const response = await fetch(url, { headers: { 'X-API-Key': MAP_API_KEY } });
                     const data = await response.json();
 
-                    clearPoiMarkers();
+                    clearWarehouseMarkers();
 
-                    if (data.length === 0) {
-                        alert("هیچ مکانی در محدوده ۵ کیلومتری این نقطه یافت نشد!");
+                    if (!data || data.length === 0) {
+                        alert("هیچ انباری برای این فروشگاه ثبت نشده است!");
                         return;
                     }
 
                     data.forEach(item => {
                         const popup = new maplibregl.Popup({ offset: 25 })
-                            .setHTML(`<b>${item.name}</b><br/><span style="font-size:10px; color:#ffa042;">📏 فاصله: ${item.distance_meters.toFixed(0)} متر</span>`);
+                            .setHTML(`
+                                <div style="text-align: right; direction: rtl; font-family: Tahoma, sans-serif;">
+                                    <b>🏢 انبار: ${item.name}</b><br/>
+                                    📍 آدرس: ${item.address || 'ثبت نشده'}<br/>
+                                    📞 تلفن تماس: ${item.phone || 'ثبت نشده'}
+                                </div>
+                            `);
 
-                        const marker = new maplibregl.Marker({ color: '#1e88e5' }) // آبی
-                            .setLngLat([item.lon, item.lat])
+                        const marker = new maplibregl.Marker({ color: '#1e88e5' })
+                            .setLngLat([parseFloat(item.lon), parseFloat(item.lat)])
                             .setPopup(popup)
                             .addTo(map);
 
-                        poiMarkers.push(marker);
+                        warehouseMarkers.push(marker);
                     });
-
                 } catch (error) {
-                    console.error("خطا در دریافت مکان‌ها از پایتون:", error);
-                    alert("خطا در ارتباط با سرور دریافت مکان‌های نزدیک!");
+                    console.error("خطا در دریافت انبارها:", error);
+                    alert("خطا در ارتباط با سرور دریافت اطلاعات انبارها!");
                 }
             });
         });
 
-        function clearPoiMarkers() {
-            poiMarkers.forEach(marker => marker.remove());
-            poiMarkers = [];
+        function clearWarehouseMarkers() {
+            warehouseMarkers.forEach(marker => marker.remove());
+            warehouseMarkers = [];
         }
+
+        initMap();
     </script>
 </body>
 </html>

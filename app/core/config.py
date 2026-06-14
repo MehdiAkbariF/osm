@@ -1,30 +1,24 @@
-# app/core/config.py
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
-    # مقادیر اولیه پروژه
-    PROJECT_NAME: str = "Iran Map API Platform"
-    VERSION: str = "1.0.0"
-    API_V1_STR: str = "/api/v1"
+    PROJECT_NAME: str = "Map API V2"
+    VERSION: str = "1.0.0"  # اضافه شد
+    DEBUG: bool = True  # اضافه شد
     
-    # آدرس سرویس‌های نقشه
-    NOMINATIM_URL: str
-    OSRM_URL: str
-    POSTGRES_URL: str
-    MARTIN_URL: str
+    # تنظیمات دیتابیس دقیقاً بر اساس docker-compose شما
+    POSTGRES_USER: str = "map_admin"
+    POSTGRES_PASSWORD: str = "map_secure_pass"
+    POSTGRES_SERVER: str = "localhost"
+    POSTGRES_PORT: str = "5433"
+    POSTGRES_DB: str = "iran_map"
+
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
     
-    # دیتابیس کاربران (SQLite) - جدید
-    SQLITE_URL: str = "sqlite:///./data/users.db"
-
-    # تنظیمات امنیتی توکن JWT
-    JWT_SECRET: str
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
+    # اضافه کردن برای راحتی
+    @property
+    def SYNC_DATABASE_URL(self) -> str:
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_SERVER}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
 
 settings = Settings()

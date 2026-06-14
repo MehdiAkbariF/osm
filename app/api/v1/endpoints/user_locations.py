@@ -10,17 +10,21 @@ from app.api.v1.dependencies import get_current_user
 
 router = APIRouter(prefix="/user/locations", tags=["User Locations"])
 
+def parse_user_location_to_dict(loc) -> dict:
+    """تبدیل ایمن آبجکت دیتابیس به دیکشنری برای ارسال به Pydantic"""
+    return {c.name: getattr(loc, c.name) for c in loc.__table__.columns}
+
 @router.post("/", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
 async def create_user_location(
     location_data: LocationCreate,
-    current_user: User = Depends(get_current_user),  # 🔐 نیازمند توکن JWT کاربر
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     ثبت موقعیت مکانی انبار/فروشگاه جدید توسط کاربر لاگین شده
     """
     location = location_service.create_location(db, location_data, current_user.id)
-    return location
+    return LocationResponse(**parse_user_location_to_dict(location))
 
 @router.get("/", response_model=List[LocationResponse])
 async def get_my_locations(
@@ -34,7 +38,7 @@ async def get_my_locations(
     دریافت موقعیت‌های ثبت شده توسط خود کاربر جاری
     """
     locations = location_service.get_user_locations(db, current_user.id, skip, limit, status)
-    return locations
+    return [LocationResponse(**parse_user_location_to_dict(loc)) for loc in locations]
 
 @router.get("/{location_id}", response_model=LocationResponse)
 async def get_my_location_detail(
@@ -50,7 +54,7 @@ async def get_my_location_detail(
         raise HTTPException(status_code=404, detail="موقعیت یافت نشد")
     if location.created_by != current_user.id:
         raise HTTPException(status_code=403, detail="شما دسترسی به این موقعیت ندارید")
-    return location
+    return LocationResponse(**parse_user_location_to_dict(location))
 
 @router.put("/{location_id}", response_model=LocationResponse)
 async def update_my_location(
@@ -71,7 +75,7 @@ async def update_my_location(
         raise HTTPException(status_code=400, detail="فقط موقعیت‌های در انتظار تایید قابل ویرایش هستند")
     
     updated = location_service.update_location(db, location_id, location_data)
-    return updated
+    return LocationResponse(**parse_user_location_to_dict(updated))
 
 @router.delete("/{location_id}", response_model=MessageResponse)
 async def delete_my_location(

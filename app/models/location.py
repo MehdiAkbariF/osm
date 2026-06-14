@@ -1,5 +1,5 @@
 # app/models/location.py
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -40,9 +40,6 @@ class Location(Base):
     unit = Column(String(50), nullable=True)
     tell = Column(String(50), nullable=True)
     is_return_usage = Column(Boolean, default=False)
-    
-    # فیلد فیزیکی در دیتابیس
-    meta_data = Column(JSON, nullable=True) 
 
     creator = relationship("User", foreign_keys=[created_by])
     approver = relationship("User", foreign_keys=[approved_by])
