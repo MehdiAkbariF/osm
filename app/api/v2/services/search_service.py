@@ -1,6 +1,6 @@
 # c:\Users\Raven\OSM\app\api\v2\services\search_service.py
 """
-search_service.py — نسخه فوق‌حرفه‌ای v3 (اصلاح شده و بدون خطای اپراتور)
+search_service.py — نسخه فوق‌حرفه‌ای v3 (محدود شده به حریم فضایی ۸۰ کیلومتری کاربر)
 PostGIS Full-Text + Fuzzy Search | Iran Map
 ============================================
 """
@@ -30,6 +30,9 @@ POOL_COMMAND_TIMEOUT = 10.0
 
 IRAN_CENTER_LAT = 32.4
 IRAN_CENTER_LON = 53.7
+
+# شعاع فیلتر محلی: ۸۰,۰۰۰ متر (۸۰ کیلومتر) که معادل محدوده یک کلان‌شهر و شهرهای حومه است
+LOCAL_SEARCH_RADIUS_METERS = 80000.0
 
 # شعاع dedup مختصاتی (درجه ≈ ۵۰ متر)
 DEDUP_GRID_DEG = 0.0005
@@ -285,13 +288,15 @@ def build_address(row: dict[str, Any]) -> str:
     return f"{display_name} ({geo_label})"
 
 # ─────────────────────────────────────────────
-# سیستم رتبه‌بندی پیشرفته (Fuzzy Match Scoring)
+# سیستم رتبه‌بندی پیشرفته با فاکتور نزدیکی به موقعیت کاربر
 # ─────────────────────────────────────────────
 
 def score_result(
     row: dict[str, Any],
     query_tokens: list[str],
     trgm_score: float,
+    user_lat: float | None = None,
+    user_lon: float | None = None
 ) -> float:
     _, type_weight = translate_tag(
         row.get("amenity") or "",
@@ -316,8 +321,15 @@ def score_result(
 
     lat = row.get("lat") or 32.4
     lon = row.get("lon") or 53.7
-    dist_deg = ((lat - IRAN_CENTER_LAT) ** 2 + (lon - IRAN_CENTER_LON) ** 2) ** 0.5
-    proximity = max(0.0, 1.0 - dist_deg / 25.0)
+    
+    # 🔴 اصلاح شد: در صورتی که موقعیت زنده کاربر ارسال شده باشد، نزدیکی به کاربر اولویت اول می‌شود
+    if user_lat and user_lon:
+        dist_deg = ((lat - user_lat) ** 2 + (lon - user_lon) ** 2) ** 0.5
+        # محدوده شعاع حدود ۱ درجه جغرافیایی (نزدیک ۱۱۰ کیلومتر)
+        proximity = max(0.0, 1.0 - dist_deg / 1.0)
+    else:
+        dist_deg = ((lat - IRAN_CENTER_LAT) ** 2 + (lon - IRAN_CENTER_LON) ** 2) ** 0.5
+        proximity = max(0.0, 1.0 - dist_deg / 25.0)
 
     score = (
         trgm_score   * 35 +
@@ -328,7 +340,7 @@ def score_result(
     return round(score, 3)
 
 # ─────────────────────────────────────────────
-# کوئری بهینه‌سازی شده با تکنیک تأخیر در پیوند فضایی و آرایه‌ها
+# کوئری ترکیبی مجهز به فیلتر هرمی شعاع فضایی (ST_DWithin)
 # ─────────────────────────────────────────────
 
 _SEARCH_SQL = """
@@ -343,64 +355,70 @@ WITH
 
   pts AS (
     SELECT
-      name,
-      tags -> 'place'   AS place,
-      tags -> 'amenity'  AS amenity,
-      tags -> 'shop'     AS shop,
-      tags -> 'tourism'  AS tourism,
-      tags -> 'highway'  AS highway,
-      tags -> 'addr:suburb'  AS suburb,
-      tags -> 'addr:street'  AS street,
+      p.name,
+      p.tags -> 'place'   AS place,
+      p.tags -> 'amenity'  AS amenity,
+      p.tags -> 'shop'     AS shop,
+      p.tags -> 'tourism'  AS tourism,
+      p.tags -> 'highway'  AS highway,
+      p.tags -> 'addr:suburb'  AS suburb,
+      p.tags -> 'addr:street'  AS street,
       NULL::text         AS landuse,
-      way,
+      p.way,
       'point'            AS source_type,
-      similarity(name, $1) AS score
-    FROM planet_osm_point
-    WHERE name IS NOT NULL
-      AND name % ANY($2) -- 🟢 اصلاح شد: استفاده از تک درصد استاندارد برای ایندکس GIN
-      AND similarity(name, $1) > 0.12
+      similarity(p.name, $1) AS score
+    FROM planet_osm_point p
+    WHERE p.name IS NOT NULL
+      AND p.name % ANY($2)
+      -- 🔴 فیلتر فضایی هوشمند: اگر لوکیشن کاربر (پارامتر ۴ و ۵) ارسال شده باشد، جستجو به شعاع ۸۰ کیلومتری محدود می‌شود
+      AND ($4::double precision IS NULL OR ST_DWithin(p.way, ST_Transform(ST_SetSRID(ST_MakePoint($4, $5), 4326), 3857), $6))
+      AND similarity(p.name, $1) > 0.12
   ),
 
   lns AS (
     SELECT
-      name,
+      l.name,
       NULL              AS place,
       NULL              AS amenity,
       NULL              AS shop,
       NULL              AS tourism,
-      highway,
+      l.highway,
       NULL              AS suburb,
       NULL              AS street,
       NULL              AS landuse,
-      ST_Centroid(way)  AS way,
+      ST_Centroid(l.way)  AS way,
       'line'            AS source_type,
-      similarity(name, $1) AS score
-    FROM planet_osm_line
-    WHERE name IS NOT NULL
-      AND name % ANY($2) -- 🟢 اصلاح شد: استفاده از تک درصد استاندارد برای ایندکس GIN
-      AND highway IS NOT NULL
-      AND similarity(name, $1) > 0.12
+      similarity(l.name, $1) AS score
+    FROM planet_osm_line l
+    WHERE l.name IS NOT NULL
+      AND l.name % ANY($2)
+      -- 🔴 فیلتر فضایی هوشمند: محدودسازی معابر به حریم ۸۰ کیلومتری کاربر
+      AND ($4::double precision IS NULL OR ST_DWithin(l.way, ST_Transform(ST_SetSRID(ST_MakePoint($4, $5), 4326), 3857), $6))
+      AND l.highway IS NOT NULL
+      AND similarity(l.name, $1) > 0.12
   ),
 
   polys AS (
     SELECT
-      name,
-      tags -> 'place'   AS place,
-      amenity,
-      shop,
-      tourism,
+      poly.name,
+      poly.tags -> 'place'   AS place,
+      poly.amenity,
+      poly.shop,
+      poly.tourism,
       NULL              AS highway,
-      tags -> 'addr:suburb' AS suburb,
-      tags -> 'addr:street' AS street,
-      landuse,
-      ST_Centroid(way)  AS way,
+      poly.tags -> 'addr:suburb' AS suburb,
+      poly.tags -> 'addr:street' AS street,
+      poly.landuse,
+      ST_Centroid(poly.way)  AS way,
       'polygon'         AS source_type,
-      similarity(name, $1) AS score
-    FROM planet_osm_polygon
-    WHERE name IS NOT NULL
-      AND name % ANY($2) -- 🟢 اصلاح شد: استفاده از تک درصد استاندارد برای ایندکس GIN
-      AND boundary IS DISTINCT FROM 'administrative'
-      AND similarity(name, $1) > 0.12
+      similarity(poly.name, $1) AS score
+    FROM planet_osm_polygon poly
+    WHERE poly.name IS NOT NULL
+      AND poly.name % ANY($2)
+      -- 🔴 فیلتر فضایی هوشمند: محدودسازی مناطق به حریم ۸۰ کیلومتری کاربر
+      AND ($4::double precision IS NULL OR ST_DWithin(poly.way, ST_Transform(ST_SetSRID(ST_MakePoint($4, $5), 4326), 3857), $6))
+      AND poly.boundary IS DISTINCT FROM 'administrative'
+      AND similarity(poly.name, $1) > 0.12
   ),
 
   candidates AS (
@@ -427,7 +445,7 @@ SELECT
   ST_Y(ST_Transform(c.way, 4326)) AS lat,
   ST_X(ST_Transform(c.way, 4326)) AS lon,
 
-  -- اجرای ساب‌کوئری‌های فضایی صرفاً برای کاندیداهای نهایی فیلتر شده (سرعت نور)
+  -- استعلام تقسیمات اداری فقط برای ۳۰ کاندیدای برتر نهایی
   (SELECT b.name FROM boundaries_prep b
    WHERE b.admin_level = '4' AND ST_Contains(b.way, c.way)
    LIMIT 1) AS province,
@@ -448,7 +466,7 @@ FROM candidates c;
 # ─────────────────────────────────────────────
 
 def _coord_key(lat: float, lon: float) -> str:
-    """grid ۱۱۰ متری برای فیلتر نقاط همپوشان فیزیکی"""
+    """grid ۱لب متری برای فیلتر نقاط همپوشان فیزیکی"""
     glat = round(lat / 0.001) * 0.001
     glon = round(lon / 0.001) * 0.001
     return f"{glat:.3f},{glon:.3f}"
@@ -461,7 +479,7 @@ def _name_key(name: str, place: str, amenity: str) -> str:
 def dedup_results(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     seen_coords: set[str] = set()
     name_best: dict[str, dict] = {}
-    seen_addresses: set[str] = set() # 🟢 اضافه شدن فیلتر اسامی همسان مجاور
+    seen_addresses: set[str] = set()
 
     for row in rows:
         lat = row.get("lat") or 0.0
@@ -486,17 +504,24 @@ def dedup_results(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return list(name_best.values())
 
 # ─────────────────────────────────────────────
-# تابع اصلی جستجو
+# تابع اصلی جستجو با قابلیت محدودسازی شعاع جغرافیایی
 # ─────────────────────────────────────────────
 
-async def search(query: str, limit: int = MAX_RESULTS) -> list[dict[str, Any]]:
+async def search(
+    query: str, 
+    limit: int = MAX_RESULTS,
+    user_lat: float | None = None,
+    user_lon: float | None = None
+) -> list[dict[str, Any]]:
+    """
+    جستجوی هوشمند در نقشه ایران همراه با فیلتر هرمی موقعیت مکانی کاربر.
+    """
     t0 = time.perf_counter()
 
     clean_query = str(query).strip()
     if len(clean_query) < 2:
         return []
 
-    # خرد کردن کلمات جستجو به صورت آرایه متنی برای انتقال به ANY در دیتابیس
     query_tokens = [t for t in clean_query.split() if len(t) >= 2]
     if not query_tokens:
         return []
@@ -504,8 +529,16 @@ async def search(query: str, limit: int = MAX_RESULTS) -> list[dict[str, Any]]:
     pool = await get_pool()
     try:
         async with pool.acquire() as conn:
-            # 🟢 انتقال صحیح آرایه متنی پایتون به صورت مستقیم به دیتابیس بدون هیچ ارور نگارشی
-            rows = await conn.fetch(_SEARCH_SQL, clean_query, query_tokens, MAX_CANDIDATES)
+            # 🟢 فراخوانی دیتابیس با انتقال متغیرهای طول، عرض جغرافیایی کاربر و شعاع ۸۰ کیلومتر
+            rows = await conn.fetch(
+                _SEARCH_SQL, 
+                clean_query, 
+                query_tokens, 
+                MAX_CANDIDATES,
+                user_lon,
+                user_lat,
+                LOCAL_SEARCH_RADIUS_METERS
+            )
     except asyncpg.PostgresError as e:
         log.error("search_db_error", query=query, error=str(e))
         return []
@@ -529,8 +562,8 @@ async def search(query: str, limit: int = MAX_RESULTS) -> list[dict[str, Any]]:
         )
         row["place_type"] = poi_fa or None
 
-        # امتیاز نهایی
-        row["final_score"] = score_result(row, query_tokens, float(row.get("score") or 0))
+        # امتیاز نهایی بهینه شده بر اساس نزدیکی به موقعیت زنده کاربر
+        row["final_score"] = score_result(row, query_tokens, float(row.get("score") or 0), user_lat, user_lon)
 
         processed.append(row)
 

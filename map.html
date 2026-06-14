@@ -136,6 +136,25 @@
             border-right: 4px solid #ffa042;
             pointer-events: auto;
         }
+
+        #satellite-toggle {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: #1e88e5;
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+        }
+        #satellite-toggle:hover { background: #1565c0; }
     </style>
 </head>
 <body>
@@ -149,10 +168,13 @@
     </div>
 
     <div id="category-filter-container">
-        <button class="cat-btn" data-store-id="1">🏢 انبارهای فروشگاه ۱</button>
-        <button class="cat-btn" data-store-id="2">🏢 انبارهای فروشگاه ۲</button>
-        <button class="cat-btn" data-store-id="3">🏢 انبارهای فروشگاه ۳</button>
+        <button class="cat-btn" id="yadakchi-stores-btn" style="border: 1px solid #1e88e5; color: #1e88e5; font-weight: bold;">⚙️ فروشگاه‌های یدکچی</button>
+        <button class="cat-btn warehouse-btn" data-store-id="1">🏢 انبارهای فروشگاه ۱</button>
+        <button class="cat-btn warehouse-btn" data-store-id="2">🏢 انبارهای فروشگاه ۲</button>
+        <button class="cat-btn warehouse-btn" data-store-id="3">🏢 انبارهای فروشگاه ۳</button>
     </div>
+
+    <button id="satellite-toggle">🛰️ نقشه ماهواره‌ای / ترکیبی</button>
 
     <div id="info-box">
         <b>✨ نقشه اختصاصی یودکچی (نسخه ۲)</b><br/>
@@ -188,8 +210,10 @@
         let startMarker = null;
         let endMarker = null;
         let warehouseMarkers = [];
+        let storeMarkers = []; 
+        let storesActive = false; 
+        let satelliteActive = false;
 
-        // الف) بارگذاری غیرهمزمان استایل رسمی شما و انطباق پویای سورس‌ها و فونت‌ها به نسخه ۲
         async function initMap() {
             try {
                 const response = await fetch(vectorStyleUrl, {
@@ -197,7 +221,6 @@
                 });
                 const style = await response.json();
 
-                // ۱. هدایت تمام سورس‌های مجزای استایل شما به تک‌ایندپوینت پروکسی شده برداری v2 پایتون
                 const v2TileUrl = "http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}";
                 
                 style.sources = {
@@ -212,36 +235,75 @@
                     "iran_points": {
                         "type": "vector",
                         "tiles": [v2TileUrl]
+                    },
+                    "satellite-raster": {
+                        "type": "raster",
+                        "tiles": ["http://localhost:8000/api/v2/map/raster/{z}/{x}/{y}"],
+                        "tileSize": 256
                     }
                 };
 
-                // ۲. تصحیح فرمت آدرس فونت‌های محلی پورت 3000 مارتین طبق ساختار پیش‌فرض default.json شما
                 style.glyphs = "http://localhost:3000/font/{fontstack}/{range}";
 
-                // ۳. 🔴 اصلاح حیاتی فونت‌ها: حذف ترکیب دوگانه جهت جلوگیری از خطای ۴۰۴ در مارتین
-                // تمام لایه‌ها را ملزم می‌کنیم فقط از فونت زیبای فارسی "Vazirmatn Thin" استفاده کنند.
                 if (style.layers) {
                     style.layers.forEach(layer => {
                         if (layer.layout && layer.layout["text-font"]) {
                             layer.layout["text-font"] = ["Vazirmatn Thin"];
                         }
                     });
+
+                    style.layers.unshift({
+                        "id": "satellite-layer",
+                        "type": "raster",
+                        "source": "satellite-raster",
+                        "paint": {
+                            "raster-opacity": 0.0 
+                        }
+                    });
                 }
 
-                // ۴. مقداردهی نقشه با استایل بهینه‌سازی شده شما
                 map = new maplibregl.Map({
                     container: 'map',
-                    center: [51.404, 35.715], // لود مرکز تهران
-                    zoom: 11,
-                    style: style
+                    center: [51.404, 35.715], 
+                    zoom: 16, 
+                    pitch: 45, 
+                    bearing: -15, 
+                    style: style,
+                    transformRequest: (url, resourceType) => {
+                        if (url.includes("127.0.0.1:8000") || url.includes("localhost:8000")) {
+                            return {
+                                url: url,
+                                headers: { 'X-API-Key': MAP_API_KEY }
+                            };
+                        }
+                        return { url: url };
+                    }
                 });
 
                 map.addControl(new maplibregl.NavigationControl());
                 
+                map.on('load', () => {
+                    map.addSource('terrain-source', {
+                        type: 'raster-dem',
+                        tiles: ['http://localhost:8000/api/v2/map/terrain/{z}/{x}/{y}'],
+                        tileSize: 256,
+                        encoding: 'mapbox'
+                    });
+                    
+                    map.setTerrain({
+                        source: 'terrain-source',
+                        exaggeration: 1.5 
+                    });
+
+                    loadTehranTrafficZones();
+                });
+                
                 setupMapEvents();
+                setupYadakchiStores();
+                setupSatelliteToggle();
 
             } catch (error) {
-                console.error("خطا در بارگذاری اولیه و تنظیم تایل‌های نقشه:", error);
+                console.error("error:", error);
             }
         }
 
@@ -257,9 +319,80 @@
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * dLon/2;
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
             return R * c;
+        }
+
+        function setupSatelliteToggle() {
+            const btn = document.getElementById('satellite-toggle');
+            btn.addEventListener('click', () => {
+                satelliteActive = !satelliteActive;
+                map.setPaintProperty('satellite-layer', 'raster-opacity', satelliteActive ? 1.0 : 0.0);
+                btn.style.background = satelliteActive ? '#ffa042' : '#1e88e5';
+                btn.innerHTML = satelliteActive ? '🗺️ نقشه کارتوگرافی / خطوط' : '🛰️ نقشه ماهواره‌ای / ترکیبی';
+                
+                if (satelliteActive) {
+                    if (map.getLayer('background')) map.setPaintProperty('background', 'background-color', '#000000');
+                } else {
+                    if (map.getLayer('background')) map.setPaintProperty('background', 'background-color', '#f4f1ea');
+                }
+            });
+        }
+
+        async function loadTehranTrafficZones() {
+            try {
+                const url = "http://localhost:8000/api/v2/map/traffic-zones";
+                const response = await fetch(url, { headers: { 'X-API-Key': MAP_API_KEY } });
+                const geojson = await response.json();
+
+                map.addSource('tehran-traffic-zones', {
+                    'type': 'geojson',
+                    'data': geojson
+                });
+
+                map.addLayer({
+                    'id': 'traffic-zones-fill',
+                    'type': 'fill',
+                    'source': 'tehran-traffic-zones',
+                    'layout': {},
+                    'paint': {
+                        'fill-color': ['get', 'color'], 
+                        'fill-opacity': 0.15
+                    }
+                });
+
+                map.addLayer({
+                    'id': 'traffic-zones-outline',
+                    'type': 'line',
+                    'source': 'tehran-traffic-zones',
+                    'layout': {},
+                    'paint': {
+                        'line-color': ['get', 'color'],
+                        'line-width': 2,
+                        'line-dasharray': [2, 2]
+                    }
+                });
+
+                map.on('click', 'traffic-zones-fill', (e) => {
+                    const props = e.features[0].properties;
+                    new maplibregl.Popup()
+                        .setLngLat(e.lngLat)
+                        .setHTML(`
+                            <div style="text-align: right; direction: rtl; font-family: Tahoma, sans-serif; font-size: 11px;">
+                                <b style="color: ${props.color}; font-size: 12px;">🚨 ${props.name}</b><br/>
+                                ⚠️ ${props.description}
+                            </div>
+                        `)
+                        .addTo(map);
+                });
+
+                map.on('mouseenter', 'traffic-zones-fill', () => { map.getCanvas().style.cursor = 'pointer'; });
+                map.on('mouseleave', 'traffic-zones-fill', () => { map.getCanvas().style.cursor = ''; });
+
+            } catch (error) {
+                console.error("error:", error);
+            }
         }
 
         function setupMapEvents() {
@@ -318,8 +451,10 @@
             
             resultsContainer.innerHTML = '<div class="result-item">در حال جستجو...</div>';
             
+            const center = map.getCenter();
+            
             try {
-                let url = `http://127.0.0.1:8000/api/v2/map/search?q=${encodeURIComponent(query)}`;
+                let url = `http://127.0.0.1:8000/api/v2/map/search?q=${encodeURIComponent(query)}&lat=${center.lat}&lon=${center.lng}`;
                 const response = await fetch(url, { headers: { 'X-API-Key': MAP_API_KEY } });
                 const data = await response.json();
                 
@@ -437,8 +572,7 @@
                     });
                 }
             } catch (error) {
-                console.error("خطا در مسیریابی:", error);
-                alert("امکان برقراری ارتباط با سرور مسیریابی وجود ندارد!");
+                console.error("error:", error);
             }
         }
 
@@ -451,7 +585,7 @@
             removeRoutePanel();
         }
 
-        document.querySelectorAll('.cat-btn').forEach(btn => {
+        document.querySelectorAll('.warehouse-btn').forEach(btn => {
             btn.addEventListener('click', async () => {
                 const storeId = btn.getAttribute('data-store-id');
                 
@@ -461,7 +595,7 @@
                     return;
                 }
 
-                document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.warehouse-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
 
                 try {
@@ -486,7 +620,7 @@
                                 </div>
                             `);
 
-                        const marker = new maplibregl.Marker({ color: '#1e88e5' })
+                        const marker = new maplibregl.Marker({ color: '#1e88e5' }) 
                             .setLngLat([parseFloat(item.lon), parseFloat(item.lat)])
                             .setPopup(popup)
                             .addTo(map);
@@ -494,8 +628,7 @@
                         warehouseMarkers.push(marker);
                     });
                 } catch (error) {
-                    console.error("خطا در دریافت انبارها:", error);
-                    alert("خطا در ارتباط با سرور دریافت اطلاعات انبارها!");
+                    console.error("error:", error);
                 }
             });
         });
@@ -503,6 +636,64 @@
         function clearWarehouseMarkers() {
             warehouseMarkers.forEach(marker => marker.remove());
             warehouseMarkers = [];
+        }
+
+        function setupYadakchiStores() {
+            const btn = document.getElementById('yadakchi-stores-btn');
+            btn.addEventListener('click', async () => {
+                if (storesActive) {
+                    storesActive = false;
+                    btn.classList.remove('active');
+                    btn.style.background = "white";
+                    btn.style.color = "#1e88e5";
+                    clearStoreMarkers();
+                    return;
+                }
+
+                storesActive = true;
+                btn.classList.add('active');
+                btn.style.background = "#1e88e5";
+                btn.style.color = "white";
+
+                try {
+                    const url = `http://127.0.0.1:8000/api/v2/stores/`;
+                    const response = await fetch(url, { headers: { 'X-API-Key': MAP_API_KEY } });
+                    const data = await response.json();
+
+                    clearStoreMarkers();
+
+                    if (!data || data.length === 0) {
+                        alert("هیچ فروشگاه یدکچی در سیستم ثبت نشده است!");
+                        return;
+                    }
+
+                    data.forEach(item => {
+                        const popup = new maplibregl.Popup({ offset: 25 })
+                            .setHTML(`
+                                <div style="text-align: right; direction: rtl; font-family: Tahoma, sans-serif; font-size: 11px;">
+                                    <b style="color: #ffa042; font-size: 12px;">⚙️ ${item.name}</b><br/>
+                                    📍 آدرس: ${item.address || 'ثبت نشده'}<br/>
+                                    📞 تلفن: ${item.phone || 'ثبت نشده'}
+                                </div>
+                            `);
+
+                        const marker = new maplibregl.Marker({ color: '#ffa042' }) 
+                            .setLngLat([parseFloat(item.lon), parseFloat(item.lat)])
+                            .setPopup(popup)
+                            .addTo(map);
+
+                        storeMarkers.push(marker);
+                    });
+
+                } catch (error) {
+                    console.error("error:", error);
+                }
+            });
+        }
+
+        function clearStoreMarkers() {
+            storeMarkers.forEach(marker => marker.remove());
+            storeMarkers = [];
         }
 
         initMap();

@@ -1,6 +1,6 @@
 # c:\Users\Raven\OSM\app\api\v2\services\reverse_service.py
 """
-reverse_service.py — نسخه فوق‌حرفه‌ای v3 (Ultra Precision)
+reverse_service.py — نسخه فوق‌حرفه‌ای v3 (Ultra Precision + Tehran Traffic Check)
 PostGIS Reverse Geocoder | Iran Address Builder
 ================================================
 """
@@ -25,11 +25,11 @@ DB_DSN = "postgresql://map_admin:map_secure_pass@localhost:5433/iran_map"
 
 POOL_MIN_SIZE = 2
 POOL_MAX_SIZE = 10
-POOL_COMMAND_TIMEOUT = 8.0   # ثانیه — timeout هر کوئری
+POOL_COMMAND_TIMEOUT = 8.0   
 
-CACHE_MAX_SIZE   = 4096       # حداکثر نتیجه در LRU
-CACHE_TTL_SEC    = 3600       # ۱ ساعت
-CACHE_GRID_DEG   = 0.0001     # ~۱۱ متر — گرد کردن مختصات برای cache hit
+CACHE_MAX_SIZE   = 4096       
+CACHE_TTL_SEC    = 3600       
+CACHE_GRID_DEG   = 0.0001     
 
 # ─────────────────────────────────────────────
 # Logging ساختاریافته
@@ -48,7 +48,7 @@ structlog.configure(
 log = structlog.get_logger("reverse_geocoder")
 
 # ─────────────────────────────────────────────
-# مدل خروجی
+# مدل خروجی با فیلد ترافیک
 # ─────────────────────────────────────────────
 
 @dataclass
@@ -64,6 +64,7 @@ class ReverseResult:
     house_number: str | None = None
     landmark: str | None = None
     distance_to_street_m: float | None = None
+    traffic_zone: str | None = None    # 🔴 فیلد جدید طرح ترافیک
     confidence: float = 1.0           
     source_type: str = "postgis_v3"
     cached: bool = False
@@ -72,9 +73,6 @@ class ReverseResult:
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items() if v is not None}
 
-# ─────────────────────────────────────────────
-# مدیریت خطاهای دیتابیس
-# ─────────────────────────────────────────────
 
 class GeocoderError(Exception):
     """خطای پایه Geocoder"""
@@ -111,14 +109,6 @@ async def get_pool() -> asyncpg.Pool:
                 log.error("db_pool_failed", error=str(e))
                 raise DatabaseError("ایجاد pool اتصال ناموفق بود") from e
     return _pool
-
-
-async def close_pool() -> None:
-    global _pool
-    if _pool:
-        await _pool.close()
-        _pool = None
-        log.info("db_pool_closed")
 
 # ─────────────────────────────────────────────
 # Cache چندلایه هوشمند
@@ -223,7 +213,7 @@ def clean_neighbourhood(name: str) -> str:
     return name.strip()
 
 # ─────────────────────────────────────────────
-# لندمارک‌های شاخص
+# توصیف‌گر لندمارک
 # ─────────────────────────────────────────────
 
 _LANDMARK_PREFIXES: dict[tuple[str, ...], str] = {
@@ -258,7 +248,7 @@ def get_landmark_prefix(amenity: str, shop: str, tourism: str) -> str:
     return "نزدیک"
 
 # ─────────────────────────────────────────────
-# کوئری ترکیبی فوق‌پیشرفته (Topological Snapping & concentric buffering)
+# کوئری ترکیبی مجهز به استعلام هندسی طرح ترافیک تهران
 # ─────────────────────────────────────────────
 
 _MASTER_QUERY = """
@@ -308,8 +298,7 @@ WITH
     LIMIT 1
   ),
 
-  -- ۳. پیوند هندسی و متقاطع معبر اصلی متصل به فرعی (Topological Snapping)
-  -- سیستم معبری را به عنوان معبر بزرگتر انتخاب می‌کند که فیزیک کوچه دقیقاً به آن تقاطع داشته باشد یا وصل شود
+  -- ۳. پیوند هندسی و متقاطع معبر اصلی متصل به فرعی مماس (Topological Snapping)
   parent AS (
     SELECT l.name, l.highway
     FROM planet_osm_line l, pt, snapped
@@ -319,7 +308,7 @@ WITH
       AND l.highway != snapped.highway
       AND (ST_DWithin(l.way, snapped.way, 5) OR ST_DWithin(pt.geom, l.way, 250))
     ORDER BY 
-      CASE WHEN ST_DWithin(l.way, snapped.way, 5) THEN 0 ELSE 1 END ASC, -- اولویت مطلق با جاده متقاطع فیزیکی
+      CASE WHEN ST_DWithin(l.way, snapped.way, 5) THEN 0 ELSE 1 END ASC,
       ST_Distance(pt.geom, l.way) ASC
     LIMIT 1
   ),
@@ -337,7 +326,7 @@ WITH
     LIMIT 1
   ),
 
-  -- ۵. لندمارک/مکان شاخص مجاور
+  -- ۵. لندمارک در شعاع ۵۰ متری
   landmark AS (
     SELECT name, amenity, shop, tourism
     FROM (
@@ -356,6 +345,14 @@ WITH
         AND ST_DWithin(pt.geom, way, 50)
     ) lm
     ORDER BY dist ASC
+    LIMIT 1
+  ),
+
+  -- 🔴 ۶. فاز جدید فضایی: استعلام وضعیت طرح ترافیک و آلودگی هوای تهران روی دیتابیس
+  traffic_zone AS (
+    SELECT name, description
+    FROM tehran_traffic_zones, pt
+    WHERE ST_Contains(way, pt.geom)
     LIMIT 1
   )
 
@@ -379,7 +376,11 @@ SELECT
             'amenity', amenity,
             'shop', shop,
             'tourism', tourism)
-   FROM landmark)                                            AS landmark;
+   FROM landmark)                                            AS landmark,
+
+  -- دریافت خروجی طرح ترافیک
+  (SELECT json_build_object('name', name, 'description', description)
+   FROM traffic_zone)                                        AS traffic_zone;
 """
 
 # ─────────────────────────────────────────────
@@ -437,7 +438,7 @@ def _build_address(
         parts.append(neighbourhood)
         confidence_score += 0.10
 
-    # ۲. معبر اصلی متصل به فرعی مماس (بر اساس تحلیل متقاطع دیتابیس)
+    # ۲. معبر اصلی متصل به فرعی مماس
     if parent_name and snapped_type not in ("motorway", "trunk", "primary"):
         parts.append(parent_name)
         confidence_score += 0.15
@@ -512,6 +513,7 @@ async def reverse_geocode(lat: float, lon: float) -> ReverseResult:
     parent_raw     = _parse(row["parent"])
     building_raw   = _parse(row["building"])
     landmark_raw   = _parse(row["landmark"])
+    traffic_raw    = _parse(row["traffic_zone"]) # 🔴 پارس اطلاعات طرح ترافیک
 
     # استخراج مقادیر نهایی
     province, city, district, neighbourhood = _parse_boundaries(boundaries_raw)
@@ -532,6 +534,10 @@ async def reverse_geocode(lat: float, lon: float) -> ReverseResult:
         landmark_raw.get("tourism") or "",
     ) if lm_name else ""
 
+    # استخراج تگ طرح ترافیک
+    traffic_zone_name = traffic_raw.get("name") or ""
+    traffic_zone_desc = traffic_raw.get("description") or ""
+
     # ساخت آدرس نهایی
     final_address, confidence = _build_address(
         province, city, district, neighbourhood,
@@ -539,6 +545,10 @@ async def reverse_geocode(lat: float, lon: float) -> ReverseResult:
         bld_name, house_num,
         lm_name, lm_prefix,
     )
+
+    # 🔴 تزریق هشدار طرح ترافیک به انتهای آدرس تشریحی
+    if traffic_zone_name:
+        final_address = f"{final_address} (🚨 توجه: {traffic_zone_name} - {traffic_zone_desc})"
 
     elapsed = (time.perf_counter() - t0) * 1000
 
@@ -554,8 +564,9 @@ async def reverse_geocode(lat: float, lon: float) -> ReverseResult:
         house_number       = to_persian_digits(house_num) if is_valid_house_number(house_num) else None,
         landmark           = f"{lm_prefix} {lm_name}".strip() if lm_name else None,
         distance_to_street_m = round(dist_to_road, 1) if dist_to_road is not None else None,
+        traffic_zone       = f"{traffic_zone_name} ({traffic_zone_desc})" if traffic_zone_name else None, # هماهنگی کامل خروجی
         confidence         = round(confidence, 2),
-        source_type        = "postgis_v3_ultra_topological",
+        source_type        = "postgis_v3_ultra_topological_traffic",
         cached             = False,
         elapsed_ms         = round(elapsed, 2),
     )
@@ -565,6 +576,7 @@ async def reverse_geocode(lat: float, lon: float) -> ReverseResult:
         lat=lat, lon=lon,
         city=city,
         street=snapped_name,
+        traffic_zone=result.traffic_zone,
         confidence=result.confidence,
         elapsed_ms=result.elapsed_ms,
     )
