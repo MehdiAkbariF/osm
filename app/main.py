@@ -4,9 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import engine
 from app.api.v2.models.base import Base
-
+from app.api.v2.models import user, store, warehouse, inventory, product, setting
 # IMPORTANT: همه مدل‌ها را import کن تا ثبت شوند
-from app.api.v2.models import user, store, warehouse, inventory, product
+
 
 from app.api.v2.router import router as v2_router
 

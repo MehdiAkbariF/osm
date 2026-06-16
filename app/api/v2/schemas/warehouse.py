@@ -1,5 +1,8 @@
+# c:\Users\Raven\OSM\app\api\v2\schemas\warehouse.py
 from pydantic import BaseModel
 from typing import Optional
+from uuid import UUID
+
 
 class WarehouseBase(BaseModel):
     name: str
@@ -8,8 +11,10 @@ class WarehouseBase(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
 
+
 class WarehouseCreate(WarehouseBase):
     pass
+
 
 class WarehouseUpdate(BaseModel):
     name: Optional[str] = None
@@ -18,9 +23,10 @@ class WarehouseUpdate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
 
+
 class WarehouseResponse(WarehouseBase):
     id: int
-    store_id: int
-    
+    store_id: UUID
+
     class Config:
         from_attributes = True

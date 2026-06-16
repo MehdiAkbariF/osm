@@ -3,36 +3,78 @@ import os
 import json
 import urllib.request
 import psycopg2
-from fastapi import APIRouter, Response, HTTPException, Query
+from fastapi import APIRouter, Response, HTTPException, Query, Depends, Request
+from sqlalchemy.orm import Session
 
-from app.api.v2.schemas.map import RouteRequest, RouteOptimizeRequest
+from app.api.v2.schemas.map import RouteRequest, RouteOptimizeRequest, PublicPublishRequest
 from app.api.v2.services.search_service import search
 from app.api.v2.services.reverse_service import reverse_geocode
 from app.api.v2.services.routing_service import get_route, optimize_trip
 
+# ایمپورت‌های مربوط به واکشی داینامیک تنظیمات از دیتابیس
+from app.core.database import get_db
+from app.api.v2.services.settings_service import get_active_settings
+
 router = APIRouter(prefix="/map", tags=["Map"])
 
 
-@router.get("/styles/default", summary="دریافت استایل کارتوگرافی استاندارد ایران (v2)")
-async def get_default_style():
+@router.get("/styles/default", summary="دریافت استایل کارتوگرافی استاندارد ایران مجهز به رندر داینامیک و سیستم فالبک امن (v2)")
+async def get_default_style(
+    request: Request,
+    db: Session = Depends(get_db)
+):
     style_path = os.path.join(os.getcwd(), "styles", "default.json")
     
     if not os.path.exists(style_path):
         raise HTTPException(
             status_code=404, 
-            detail=f"Style file not found at: {style_path}"
+            detail=f"Style template file not found at: {style_path}"
         )
         
     try:
+        # ۱. تلاش برای واکشی تنظیمات دیتابیس به صورت کاملاً امن
+        try:
+            settings_record = get_active_settings(db)
+        except Exception:
+            settings_record = None
+
+        # ۲. استفاده از متدهای پیش‌فرض (فالبک) در صورت عدم وجود ستون یا نال بودن مقدار دیتابیس
+        bg_color = getattr(settings_record, "background_color", "#f4f1ea") or "#f4f1ea"
+        park_color = getattr(settings_record, "park_color", "#d0e4cc") or "#d0e4cc"
+        water_color = getattr(settings_record, "water_color", "#aad3df") or "#aad3df"
+        primary_color = getattr(settings_record, "primary_road_color", "#ffa042") or "#ffa042"
+        secondary_color = getattr(settings_record, "secondary_road_color", "#ffe082") or "#ffe082"
+        minor_color = getattr(settings_record, "minor_road_color", "#ffffff") or "#ffffff"
+        font_family = getattr(settings_record, "font_family", "Vazirmatn Thin") or "Vazirmatn Thin"
+        
+        # ۳. خواندن قالب استایل خام کارتوگرافی
         with open(style_path, "r", encoding="utf-8") as f:
-            style_data = json.load(f)
+            style_raw = f.read()
+
+        # ۴. تزریق داینامیک آدرس تایل‌ها بر اساس دامنه فعال درخواست‌کننده
+        base_url = f"{request.url.scheme}://{request.url.netloc}/api/v2/map"
+        style_raw = style_raw.replace("http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}", f"{base_url}/tiles/{{z}}/{{x}}/{{y}}")
+        style_raw = style_raw.replace("http://localhost:8000/api/v2/map/raster/{z}/{x}/{y}", f"{base_url}/raster/{{z}}/{{x}}/{{y}}")
+        style_raw = style_raw.replace("http://localhost:8000/api/v2/map/terrain/{z}/{x}/{y}", f"{base_url}/terrain/{{z}}/{{x}}/{{y}}")
+        
+        # ۵. جایگذاری داینامیک و زنده پارامترهای رنگ‌بندی و فونت با امنیت بالا
+        style_raw = style_raw.replace("{{BACKGROUND_COLOR}}", bg_color)
+        style_raw = style_raw.replace("{{PARK_COLOR}}", park_color)
+        style_raw = style_raw.replace("{{WATER_COLOR}}", water_color)
+        style_raw = style_raw.replace("{{PRIMARY_ROAD_COLOR}}", primary_color)
+        style_raw = style_raw.replace("{{SECONDARY_ROAD_COLOR}}", secondary_color)
+        style_raw = style_raw.replace("{{MINOR_ROAD_COLOR}}", minor_color)
+        style_raw = style_raw.replace("{{FONT_FAMILY}}", font_family)
+
+        # تبدیل رشته نهایی به ساختار استاندارد JSON
+        style_data = json.loads(style_raw)
         return style_data
+        
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Error reading stylesheet from disk: {str(e)}"
+            detail=f"Error compiling dynamic stylesheet: {str(e)}"
         )
-
 
 @router.get("/search")
 async def search_endpoint(
@@ -64,9 +106,57 @@ async def route_optimize_endpoint(payload: RouteOptimizeRequest):
     return await optimize_trip(locations=locs_list)
 
 
+@router.post("/public-publish", summary="ثبت و همگام‌سازی داوطلبانه موقعیت فروشگاه روی نقشه عمومی")
+async def public_publish_endpoint(payload: PublicPublishRequest):
+    try:
+        conn = psycopg2.connect(
+            host="localhost",
+            port=5433,
+            user="map_admin",
+            password="map_secure_pass",
+            dbname="iran_map"
+        )
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            INSERT INTO stores (id, name, lat, lon, address, phone) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (id) 
+            DO UPDATE SET 
+                name = EXCLUDED.name, 
+                lat = EXCLUDED.lat, 
+                lon = EXCLUDED.lon, 
+                address = EXCLUDED.address, 
+                phone = EXCLUDED.phone
+            RETURNING id, name, lat, lon, address, phone;
+            """,
+            (str(payload.id), payload.name, payload.lat, payload.lon, payload.address, payload.phone)
+        )
+        updated_store = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return {
+            "status": "success",
+            "detail": "Store location synchronized and published on map",
+            "store": {
+                "id": updated_store[0],
+                "name": updated_store[1],
+                "lat": updated_store[2],
+                "lon": updated_store[3]
+            }
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Database error during public publishing: {str(e)}"
+        )
+
+
 @router.get("/tiles/{z}/{x}/{y}")
 async def tile_endpoint(z: int, x: int, y: int):
-    # پروکسی ایمن تایل‌های برداری از مارتین
     martin_url = f"http://127.0.0.1:3000/planet_osm_point,planet_osm_line,planet_osm_polygon,planet_osm_roads/{z}/{x}/{y}"
     try:
         req = urllib.request.Request(martin_url)

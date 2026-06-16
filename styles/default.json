@@ -5,15 +5,15 @@
   "sources": {
     "iran_polygons": {
       "type": "vector",
-      "url": "{{BASE_URL}}/tiles/planet_osm_polygon.json?api_key={{API_KEY}}"
+      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
     },
     "iran_lines": {
       "type": "vector",
-      "url": "{{BASE_URL}}/tiles/planet_osm_line.json?api_key={{API_KEY}}"
+      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
     },
     "iran_points": {
       "type": "vector",
-      "url": "{{BASE_URL}}/tiles/planet_osm_point.json?api_key={{API_KEY}}"
+      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
     }
   },
   "layers": [
@@ -21,7 +21,7 @@
       "id": "background",
       "type": "background",
       "paint": {
-        "background-color": "#f4f1ea"
+        "background-color": "{{BACKGROUND_COLOR}}"
       }
     },
     {
@@ -42,7 +42,7 @@
       "source-layer": "planet_osm_polygon",
       "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]],
       "paint": {
-        "fill-color": "#d0e4cc"
+        "fill-color": "{{PARK_COLOR}}"
       }
     },
     {
@@ -52,7 +52,7 @@
       "source-layer": "planet_osm_polygon",
       "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]],
       "paint": {
-        "fill-color": "#aad3df"
+        "fill-color": "{{WATER_COLOR}}"
       }
     },
     {
@@ -74,7 +74,7 @@
       "source-layer": "planet_osm_line",
       "filter": ["has", "waterway"],
       "paint": {
-        "line-color": "#aad3df",
+        "line-color": "{{WATER_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -109,7 +109,7 @@
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
       "paint": {
-        "line-color": "#ffa042",
+        "line-color": "{{PRIMARY_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -145,7 +145,7 @@
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
       "paint": {
-        "line-color": "#ffe082",
+        "line-color": "{{SECONDARY_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -163,7 +163,7 @@
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]],
       "paint": {
-        "line-color": "#ffffff",
+        "line-color": "{{MINOR_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -184,7 +184,7 @@
       "filter": ["==", "place", "state"],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -209,7 +209,7 @@
       "filter": ["any", ["==", "place", "city"], ["==", "place", "town"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -234,7 +234,7 @@
       "filter": ["any", ["==", "place", "suburb"], ["==", "place", "neighbourhood"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -258,7 +258,7 @@
       "filter": ["all", ["has", "name"], ["has", "highway"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -283,7 +283,7 @@
       "filter": ["all", ["has", "name"], ["!", ["has", "place"]]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],

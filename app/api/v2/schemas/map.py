@@ -1,6 +1,7 @@
 # c:\Users\Raven\OSM\app\api\v2\schemas\map.py
 from pydantic import BaseModel
 from typing import List
+from uuid import UUID
 
 
 class RouteRequest(BaseModel):
@@ -17,3 +18,12 @@ class LocationCoordinate(BaseModel):
 
 class RouteOptimizeRequest(BaseModel):
     locations: List[LocationCoordinate]
+
+
+class PublicPublishRequest(BaseModel):
+    id: UUID
+    name: str
+    lat: float
+    lon: float
+    address: str
+    phone: str
