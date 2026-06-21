@@ -14,14 +14,19 @@ class SettingsUpdate(BaseModel):
     avoid_traffic_zones: bool = Field(..., description="دور زدن طرح ترافیک")
     traffic_time_multiplier: float = Field(..., description="ضریب زمان ترافیک")
 
-    # پارامترهای جدید شخصی‌سازی داینامیک کارتوگرافی نقشه (Dynamic Cartography)
+    # پارامترهای پایه شخصی‌سازی کارتوگرافی نقشه
     background_color: str = Field("#f4f1ea", description="رنگ پس‌زمینه خشکی‌ها")
     park_color: str = Field("#d0e4cc", description="رنگ پارک‌ها و فضاهای سبز")
     water_color: str = Field("#aad3df", description="رنگ دریاچه‌ها و رودخانه‌ها")
-    primary_road_color: str = Field("#ffa042", description="رنگ بزرگراه‌ها و راه‌های اصلی")
+    primary_road_color: str = Field("#ffa042", description="رنگ بزرگراه‌ها")
     secondary_road_color: str = Field("#ffe082", description="رنگ خیابان‌های شریانی")
     minor_road_color: str = Field("#ffffff", description="رنگ کوچه‌ها و معابر فرعی")
-    font_family: str = Field("Vazirmatn Thin", description="فونت پیش‌فرض رندر اسامی روی نقشه")
+    font_family: str = Field("Vazirmatn Thin", description="فونت پیش‌فرض نقشه")
+
+    # 👈 پارامترهای پیشرفته جدید کارتوگرافی نقشه
+    building_color: str = Field("#e0deda", description="رنگ سازه‌ها و ساختمان‌ها")
+    residential_zone_color: str = Field("#e5e0d8", description="رنگ بافت مسکونی و تجاری")
+    label_font_size: float = Field(1.0, ge=0.5, le=2.0, description="ضریب مقیاس اندازه فونت‌ها")
 
 
 class SettingsResponse(SettingsUpdate):

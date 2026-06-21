@@ -47,6 +47,11 @@ async def get_default_style(
         minor_color = getattr(settings_record, "minor_road_color", "#ffffff") or "#ffffff"
         font_family = getattr(settings_record, "font_family", "Vazirmatn Thin") or "Vazirmatn Thin"
         
+        # واکشی فیلدهای پیشرفته جدید از دیتابیس یا مقادیر فالبک
+        building_color = getattr(settings_record, "building_color", "#e0deda") or "#e0deda"
+        res_color = getattr(settings_record, "residential_zone_color", "#e5e0d8") or "#e5e0d8"
+        label_size = getattr(settings_record, "label_font_size", 1.0) or 1.0
+        
         # ۳. خواندن قالب استایل خام کارتوگرافی
         with open(style_path, "r", encoding="utf-8") as f:
             style_raw = f.read()
@@ -57,7 +62,7 @@ async def get_default_style(
         style_raw = style_raw.replace("http://localhost:8000/api/v2/map/raster/{z}/{x}/{y}", f"{base_url}/raster/{{z}}/{{x}}/{{y}}")
         style_raw = style_raw.replace("http://localhost:8000/api/v2/map/terrain/{z}/{x}/{y}", f"{base_url}/terrain/{{z}}/{{x}}/{{y}}")
         
-        # ۵. جایگذاری داینامیک و زنده پارامترهای رنگ‌بندی و فونت با امنیت بالا
+        # ۵. جایگذاری داینامیک و زنده پارامترهای رنگ‌بندی و فونت پایه با امنیت بالا
         style_raw = style_raw.replace("{{BACKGROUND_COLOR}}", bg_color)
         style_raw = style_raw.replace("{{PARK_COLOR}}", park_color)
         style_raw = style_raw.replace("{{WATER_COLOR}}", water_color)
@@ -65,6 +70,11 @@ async def get_default_style(
         style_raw = style_raw.replace("{{SECONDARY_ROAD_COLOR}}", secondary_color)
         style_raw = style_raw.replace("{{MINOR_ROAD_COLOR}}", minor_color)
         style_raw = style_raw.replace("{{FONT_FAMILY}}", font_family)
+
+        # جایگذاری متغیرهای پیشرفته جدید کارتوگرافی در فایل استایل
+        style_raw = style_raw.replace("{{BUILDING_COLOR}}", building_color)
+        style_raw = style_raw.replace("{{RESIDENTIAL_COLOR}}", res_color)
+        style_raw = style_raw.replace("{{LABEL_FONT_SIZE}}", str(label_size))
 
         # تبدیل رشته نهایی به ساختار استاندارد JSON
         style_data = json.loads(style_raw)
@@ -75,6 +85,7 @@ async def get_default_style(
             status_code=500, 
             detail=f"Error compiling dynamic stylesheet: {str(e)}"
         )
+
 
 @router.get("/search")
 async def search_endpoint(

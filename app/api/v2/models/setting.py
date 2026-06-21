@@ -20,7 +20,7 @@ class MapSetting(Base, TimestampMixin):
     avoid_traffic_zones = Column(Boolean, default=False, nullable=False)
     traffic_time_multiplier = Column(Float, default=1.2, nullable=False)
 
-    # ستون‌های جدید کارتوگرافی داینامیک نقشه
+    # ستون‌های اصلی کارتوگرافی داینامیک نقشه
     background_color = Column(String(10), default="#f4f1ea", nullable=False)
     park_color = Column(String(10), default="#d0e4cc", nullable=False)
     water_color = Column(String(10), default="#aad3df", nullable=False)
@@ -28,3 +28,8 @@ class MapSetting(Base, TimestampMixin):
     secondary_road_color = Column(String(10), default="#ffe082", nullable=False)
     minor_road_color = Column(String(10), default="#ffffff", nullable=False)
     font_family = Column(String(100), default="Vazirmatn Thin", nullable=False)
+
+    # 👈 ستون‌های پیشرفته کارتوگرافی داینامیک جدید
+    building_color = Column(String(10), default="#e0deda", nullable=False)
+    residential_zone_color = Column(String(10), default="#e5e0d8", nullable=False)
+    label_font_size = Column(Float, default=1.0, nullable=False)
