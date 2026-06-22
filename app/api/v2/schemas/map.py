@@ -27,3 +27,4 @@ class PublicPublishRequest(BaseModel):
     lon: float
     address: str
     phone: str
+    is_warehouse: bool = False  # 👈 اضافه شد

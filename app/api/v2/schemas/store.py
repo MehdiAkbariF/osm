@@ -11,6 +11,7 @@ class StoreBase(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     shop_id: Optional[UUID] = None
+    is_warehouse: bool = False  # 👈 اضافه شد
 
 
 class StoreCreate(StoreBase):
@@ -24,6 +25,7 @@ class StoreUpdate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     shop_id: Optional[UUID] = None
+    is_warehouse: Optional[bool] = None  # 👈 اضافه شد
 
 
 class StoreResponse(StoreBase):

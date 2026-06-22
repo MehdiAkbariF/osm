@@ -31,7 +31,7 @@
       "source-layer": "planet_osm_polygon",
       "filter": ["==", "landuse", "residential"],
       "paint": {
-        "fill-color": "#e5e0d8",
+        "fill-color": "{{RESIDENTIAL_COLOR}}",
         "fill-opacity": 0.9
       }
     },
@@ -63,7 +63,7 @@
       "minzoom": 13,
       "filter": ["has", "building"],
       "paint": {
-        "fill-color": "#e0deda",
+        "fill-color": "{{BUILDING_COLOR}}",
         "fill-opacity": 0.85
       }
     },
@@ -189,8 +189,8 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          4, 11,
-          8, 15
+          4, ["*", 11, "{{LABEL_FONT_SIZE}}"],
+          8, ["*", 15, "{{LABEL_FONT_SIZE}}"]
         ]
       },
       "paint": {
@@ -214,8 +214,8 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          7, 10,
-          11, 13
+          7, ["*", 10, "{{LABEL_FONT_SIZE}}"],
+          11, ["*", 13, "{{LABEL_FONT_SIZE}}"]
         ]
       },
       "paint": {
@@ -239,9 +239,10 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          11, 10,
-          14, 12
-        ]
+          11, ["*", 10, "{{LABEL_FONT_SIZE}}"],
+          14, ["*", 12, "{{LABEL_FONT_SIZE}}"]
+        ],
+        "symbol-placement": "point"
       },
       "paint": {
         "text-color": "#616161",
@@ -263,8 +264,8 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          12, 9,
-          16, 12
+          12, ["*", 9, "{{LABEL_FONT_SIZE}}"],
+          16, ["*", 12, "{{LABEL_FONT_SIZE}}"]
         ],
         "symbol-placement": "line"
       },
@@ -288,8 +289,8 @@
           "interpolate",
           ["linear"],
           ["zoom"],
-          14, 9,
-          17, 12
+          14, ["*", 9, "{{LABEL_FONT_SIZE}}"],
+          17, ["*", 12, "{{LABEL_FONT_SIZE}}"]
         ],
         "symbol-placement": "point",
         "text-padding": 10

@@ -16,9 +16,7 @@ OSM/
     dump_project.py
     import_raster.py
     map.html
-    project_dump.txt
     requirements.txt
-    s
     app/
         __init__.py
         main.py
@@ -55,6 +53,7 @@ OSM/
                     inventory.py
                     locations.py
                     map.py
+                    settings.py
                     stores.py
                     warehouses.py
                 models/
@@ -62,6 +61,7 @@ OSM/
                     base.py
                     inventory.py
                     product.py
+                    setting.py
                     store.py
                     store_product.py
                     user.py
@@ -80,6 +80,7 @@ OSM/
                     reverse_service.py
                     routing_service.py
                     search_service.py
+                    settings_service.py
                     store_service.py
                     tile_service.py
                     warehouse_service.py
@@ -1415,588 +1416,11 @@ except Exception as e:
 
 _(truncated — file exceeds size limit)_
 
-### project_dump.txt
-
-```
-
-```
-
 ### requirements.txt
 
 ```
 psycopg2-binary
 ```
-
-### s
-
-```
-
-    Directory: C:\Users\Raven\OSM
-
-
-Mode                 LastWriteTime         Length Name
-----                 -------------         ------ ----
-d-----         5/31/2026  10:29 AM                app
-d-----         5/27/2026  10:22 AM                clean_fonts
-d-----         5/31/2026   1:02 PM                data
-d-----         5/27/2026  10:29 AM                fonts
-d-----         5/27/2026   9:41 AM                martin
-d-----         5/31/2026   9:28 AM                osm2pgsql
-d-----         5/31/2026  10:28 AM                scripts
-d-----         5/28/2026  12:00 PM                venv
--a----         5/31/2026  10:08 AM            690 .env
--a----         5/31/2026   8:46 AM            356 .gitignore
--a----         5/31/2026   9:32 AM            188 config.yaml
--a----         5/31/2026  10:06 AM           1064 docker-compose.yml
--a----         5/31/2026   9:45 AM          31591 map.html
--a----         5/31/2026  10:01 AM           8064 README.md
--a----         5/30/2026  10:35 AM             15 requirements.txt
--a----         5/27/2026   8:34 AM           2333 s
-
-
-PS C:\Users\Raven\OSM> cd c:\Users\Raven\OSM\app
-PS C:\Users\Raven\OSM\app> ls
-
-
-    Directory: C:\Users\Raven\OSM\app
-
-
-Mode                 LastWriteTime         Length Name
-----                 -------------         ------ ----
-d-----         5/30/2026  10:15 AM                api
-d-----         5/31/2026  10:22 AM                core
-d-----         5/31/2026   1:06 PM                models
-d-----         5/31/2026  11:56 AM                schemas
-d-----         5/31/2026  11:59 AM                services
-d-----         5/31/2026  10:29 AM                __pycache__
--a----         5/31/2026  10:28 AM           1309 main.py
--a----         5/28/2026  11:59 AM              0 __init__.py
-
-PS C:\Users\Raven\OSM\app\api> ls
-
-
-    Directory: C:\Users\Raven\OSM\app\api
-
-
-Mode                 LastWriteTime         Length Name
-----                 -------------         ------ ----
-d-----         5/31/2026  10:29 AM                v1
-d-----         5/30/2026  10:15 AM                __pycache__
--a----         5/28/2026  11:59 AM              0 deps.py
--a----         5/28/2026  11:59 AM              0 __init__.py
-
-PS C:\Users\Raven\OSM\app\api\v1\endpoints> ls
-
-
-    Directory: C:\Users\Raven\OSM\app\api\v1\endpoints
-
-
-Mode                 LastWriteTime         Length Name
-----                 -------------         ------ ----
-d-----         5/31/2026   1:07 PM                __pycache__
--a----         5/31/2026  10:28 AM           4293 admin.py
--a----         5/31/2026  10:42 AM           5097 auth.py
--a----         5/31/2026   1:07 PM          10288 locations.py
--a----         5/30/2026  11:51 AM           1087 pois.py
--a----         5/31/2026   8:19 AM           4649 reverse.py
--a----         5/28/2026  11:59 AM              0 route.py
--a----         5/30/2026  10:29 AM           2525 search.py
--a----         5/30/2026  11:43 AM           1008 tiles.py
--a----         5/28/2026  11:59 AM              0 __init__.py
-
-c:\Users\Raven\OSM\app\api\v1\endpoints\admin.py
-# app/api/v1/endpoints/admin.py
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from datetime import datetime
-from typing import List, Optional
-from app.core.database import get_db
-from app.models.user import User
-from app.schemas.user import UserResponse, MessageResponse
-from app.api.v1.dependencies import get_current_admin
-
-router = APIRouter(prefix="/admin", tags=["Admin"], dependencies=[Depends(get_current_admin)])
-
-@router.get("/users", response_model=List[UserResponse])
-async def get_all_users(
-    skip: int = Query(0, ge=0, description="تعداد رد شده"),
-    limit: int = Query(50, ge=1, le=100, description="تعداد در هر صفحه"),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت لیست همه کاربران (فقط ادمین)
-    """
-    users = db.query(User).offset(skip).limit(limit).all()
-    return [UserResponse.model_validate(user) for user in users]
-
-@router.get("/users/pending", response_model=List[UserResponse])
-async def get_pending_users(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت لیست کاربران در انتظار تایید (is_active=False)
-    """
-    users = db.query(User).filter(User.is_active == False).offset(skip).limit(limit).all()
-    return [UserResponse.model_validate(user) for user in users]
-
-@router.put("/users/{user_id}/approve", response_model=MessageResponse)
-async def approve_user(
-    user_id: int,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    تایید کاربر توسط ادمین
-    """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="کاربر یافت نشد")
-    
-    if user.is_active:
-        return MessageResponse(message="کاربر قبلاً تایید شده است", success=True)
-    
-    user.is_active = True
-    user.approved_at = datetime.utcnow()
-    user.approved_by = current_admin.id
-    
-    db.commit()
-    
-    return MessageResponse(message=f"کاربر {user.username} با موفقیت تایید شد")
-
-@router.put("/users/{user_id}/reject", response_model=MessageResponse)
-async def reject_user(
-    user_id: int,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    رد درخواست کاربر (حذف کاربر)
-    """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="کاربر یافت نشد")
-    
-    db.delete(user)
-    db.commit()
-    
-    return MessageResponse(message=f"درخواست کاربر {user.username} رد و حذف شد")
-
-@router.put("/users/{user_id}/block", response_model=MessageResponse)
-async def block_user(
-    user_id: int,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    مسدود کردن کاربر (is_active = False)
-    """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="کاربر یافت نشد")
-    
-    if user.is_admin:
-        raise HTTPException(status_code=403, detail="نمی‌توانید ادمین را مسدود کنید")
-    
-    user.is_active = False
-    db.commit()
-    
-    return MessageResponse(message=f"کاربر {user.username} مسدود شد")
-
-@router.delete("/users/{user_id}", response_model=MessageResponse)
-async def delete_user(
-    user_id: int,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    حذف کامل کاربر
-    """
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="کاربر یافت نشد")
-    
-    if user.is_admin:
-        raise HTTPException(status_code=403, detail="نمی‌توانید ادمین را حذف کنید")
-    
-    db.delete(user)
-    db.commit()
-    
-    return MessageResponse(message=f"کاربر {user.username} حذف شد")
-
-c:\Users\Raven\OSM\app\api\v1\endpoints\auth.py
-# app/api/v1/endpoints/auth.py
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from datetime import datetime
-from app.core.database import get_db
-from app.models.user import User
-from app.schemas.user import UserRegister, UserLogin, TokenResponse, UserResponse, MessageResponse, ChangePassword, UserUpdate
-from app.services.auth import auth_service
-from app.api.v1.dependencies import get_current_user  # ✅ اضافه کردن این خط
-
-router = APIRouter(prefix="/auth", tags=["Authentication"])
-@router.post("/register", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """
-    ثبت‌نام کاربر جدید
-    """
-    # بررسی وجود نام کاربری تکراری
-    existing_user = db.query(User).filter(User.username == user_data.username).first()
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="این نام کاربری قبلاً ثبت شده است"
-        )
-    
-    # بررسی وجود ایمیل تکراری
-    existing_email = db.query(User).filter(User.email == user_data.email).first()
-    if existing_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="این ایمیل قبلاً ثبت شده است"
-        )
-    
-    # هش کردن رمز عبور
-    hashed_password = auth_service.hash_password(user_data.password)
-    
-    # ایجاد کاربر جدید (is_active = False به صورت پیش‌فرض)
-    new_user = User(
-        username=user_data.username,
-        email=user_data.email,
-        hashed_password=hashed_password,
-        full_name=user_data.full_name,
-        phone_number=user_data.phone_number,
-        is_active=False,
-        is_admin=False
-    )
-    
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return MessageResponse(
-        message="ثبت‌نام با موفقیت انجام شد. حساب کاربری شما منتظر تایید ادمین است.",
-        success=True
-    )
-
-@router.post("/login", response_model=TokenResponse)
-async def login(login_data: UserLogin, db: Session = Depends(get_db)):
-    """
-    ورود کاربر به سیستم
-    """
-    user = db.query(User).filter(
-        (User.username == login_data.username) | (User.email == login_data.username)
-    ).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="نام کاربری یا رمز عبور اشتباه است"
-        )
-    
-    if not auth_service.verify_password(login_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="نام کاربری یا رمز عبور اشتباه است"
-        )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="حساب کاربری شما هنوز توسط ادمین تایید نشده است"
-        )
-    
-    user.last_login = datetime.utcnow()
-    db.commit()
-    
-    access_token = auth_service.create_access_token(user.id, user.username)
-    
-    return TokenResponse(
-        access_token=access_token,
-        user=UserResponse.model_validate(user)
-    )
-
-@router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_current_user)):
-    """
-    دریافت اطلاعات کاربر جاری
-    """
-    return UserResponse.model_validate(current_user)
-
-@router.put("/me", response_model=UserResponse)
-async def update_me(
-    user_data: UserUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    ویرایش اطلاعات کاربر جاری
-    """
-    if user_data.full_name is not None:
-        current_user.full_name = user_data.full_name
-    if user_data.phone_number is not None:
-        current_user.phone_number = user_data.phone_number
-    
-    db.commit()
-    db.refresh(current_user)
-    
-    return UserResponse.model_validate(current_user)
-
-@router.post("/change-password", response_model=MessageResponse)
-async def change_password(
-    password_data: ChangePassword,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    تغییر رمز عبور
-    """
-    if not auth_service.verify_password(password_data.old_password, current_user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="رمز عبور فعلی اشتباه است"
-        )
-    
-    current_user.hashed_password = auth_service.hash_password(password_data.new_password)
-    db.commit()
-    
-    return MessageResponse(message="رمز عبور با موفقیت تغییر کرد")
-
-c:\Users\Raven\OSM\app\api\v1\endpoints\locations.py
-# app/api/v1/endpoints/locations.py
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
-from typing import List, Optional
-from app.core.database import get_db
-from app.models.user import User
-from app.models.location import Location
-from app.schemas.location import (
-    LocationCreate, LocationUpdate, LocationResponse, 
-    LocationAdminResponse, LocationApprove, LocationReject,
-    MessageResponse
-)
-from app.services.location_service import location_service
-from app.api.v1.dependencies import get_current_user, get_current_admin
-
-router = APIRouter(prefix="/locations", tags=["Locations"])
-
-# ========== کاربر معمولی ==========
-
-@router.post("/", response_model=LocationResponse, status_code=status.HTTP_201_CREATED)
-async def create_location(
-    location_data: LocationCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    ثبت موقعیت مکانی جدید
-    - فقط کاربران تایید شده می‌توانند ثبت کنند
-    - موقعیت با وضعیت pending ذخیره می‌شود
-    """
-    location = location_service.create_location(db, location_data, current_user.id)
-    return location
-
-@router.get("/my-locations", response_model=List[LocationResponse])
-async def get_my_locations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    status: Optional[str] = Query(None, description="pending, approved, rejected"),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت موقعیت‌های ثبت شده توسط کاربر جاری
-    """
-    locations = location_service.get_user_locations(db, current_user.id, skip, limit, status)
-    return locations
-
-@router.get("/my-locations/{location_id}", response_model=LocationResponse)
-async def get_my_location(
-    location_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت جزئیات یک موقعیت (فقط اگر مالک آن باشید)
-    """
-    location = location_service.get_location(db, location_id)
-    if not location:
-        raise HTTPException(status_code=404, detail="موقعیت یافت نشد")
-    if location.created_by != current_user.id and not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="شما دسترسی به این موقعیت ندارید")
-    return location
-
-@router.put("/my-locations/{location_id}", response_model=LocationResponse)
-async def update_my_location(
-    location_id: int,
-    location_data: LocationUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    ویرایش موقعیت (فقط اگر در وضعیت pending باشد)
-    """
-    location = location_service.get_location(db, location_id)
-    if not location:
-        raise HTTPException(status_code=404, detail="موقعیت یافت نشد")
-    if location.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="شما دسترسی به این موقعیت ندارید")
-    if location.status != "pending":
-        raise HTTPException(status_code=400, detail="فقط موقعیت‌های در انتظار تایید قابل ویرایش هستند")
-    
-    updated = location_service.update_location(db, location_id, location_data)
-    return updated
-
-@router.delete("/my-locations/{location_id}", response_model=MessageResponse)
-async def delete_my_location(
-    location_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    حذف موقعیت (فقط اگر در وضعیت pending باشد)
-    """
-    location = location_service.get_location(db, location_id)
-    if not location:
-        raise HTTPException(status_code=404, detail="موقعیت یافت نشد")
-    if location.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="شما دسترسی به این موقعیت ندارید")
-    if location.status != "pending":
-        raise HTTPException(status_code=400, detail="فقط موقعیت‌های در انتظار تایید قابل حذف هستند")
-    
-    location_service.delete_location(db, location_id)
-    return MessageResponse(message="موقعیت با موفقیت حذف شد")
-
-# ========== API عمومی (برای نقشه) ==========
-
-@router.get("/approved", response_model=List[LocationResponse])
-async def get_approved_locations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    category: Optional[str] = None,
-    city: Optional[str] = None,
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت موقعیت‌های تایید شده (برای نمایش در نقشه)
-    - بدون نیاز به احراز هویت
-    """
-    locations = location_service.get_all_locations(
-        db, skip, limit, status="approved", category=category, city=city
-    )
-    return locations
-
-@router.get("/nearby", response_model=List[LocationResponse])
-async def get_nearby_locations(
-    lat: float = Query(..., description="عرض جغرافیایی"),
-    lon: float = Query(..., description="طول جغرافیایی"),
-    radius_km: float = Query(5.0, ge=0.5, le=50, description="شعاع بر حسب کیلومتر"),
-    limit: int = Query(20, ge=1, le=50),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت موقعیت‌های تایید شده نزدیک به مختصات داده شده
-    - برای نمایش مکان‌های اطراف
-    """
-    locations = location_service.get_nearby_locations(db, lat, lon, radius_km, limit)
-    return locations
-
-# ========== ادمین ==========
-
-@router.get("/admin/all", response_model=List[LocationAdminResponse])
-async def admin_get_all_locations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    status: Optional[str] = Query(None, description="pending, approved, rejected"),
-    category: Optional[str] = None,
-    city: Optional[str] = None,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت تمام موقعیت‌ها (فقط ادمین)
-    """
-    locations = location_service.get_all_locations(db, skip, limit, status, category, city)
-    
-    # اضافه کردن اطلاعات ایجادکننده
-    result = []
-    for loc in locations:
-        creator = db.query(User).filter(User.id == loc.created_by).first()
-        loc_dict = LocationAdminResponse.model_validate(loc).dict()
-        loc_dict["creator_name"] = creator.full_name or creator.username
-        loc_dict["creator_username"] = creator.username
-        result.append(LocationAdminResponse(**loc_dict))
-    
-    return result
-
-@router.get("/admin/pending", response_model=List[LocationAdminResponse])
-async def admin_get_pending_locations(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    دریافت موقعیت‌های در انتظار تایید (فقط ادمین)
-    """
-    locations = location_service.get_pending_locations(db, skip, limit)
-    
-    result = []
-    for loc in locations:
-        creator = db.query(User).filter(User.id == loc.created_by).first()
-        loc_dict = LocationAdminResponse.model_validate(loc).dict()
-        loc_dict["creator_name"] = creator.full_name or creator.username
-        loc_dict["creator_username"] = creator.username
-        result.append(LocationAdminResponse(**loc_dict))
-    
-    return result
-
-@router.put("/admin/{location_id}/approve", response_model=LocationResponse)
-async def admin_approve_location(
-    location_id: int,
-    approve_data: LocationApprove,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    تایید موقعیت توسط ادمین
-    """
-    location = location_service.get_location(db, location_id)
-    if not location:
-        raise HTTPException(status_code=404, detail="موقعیت یافت نشد")
-    
-    if location.status != "pending":
-        raise HTTPException(status_code=400, detail="این موقعیت قبلاً بررسی شده است")
-    
-    approved = location_service.approve_location(
-        db, location_id, current_admin.id, approve_data.admin_notes
-    )
-    return approved
-
-@router.put("/admin/{location_id}/reject", response_model=MessageResponse)
-async def admin_reject_location(
-    location_id: int,
-    reject_data: LocationReject,
-    current_admin: User = Depends(get_current_admin),
-    db: Session = Depends(get_db)
-):
-    """
-    رد موقعیت توسط ادمین با ذکر دلیل
-    """
-    location = location_service.get_location(db, location_id)
-    if not location:
-        raise HTTPException(status_code=404, detail="موقعیت یافت نشد")
-    
-    if location.status != "pending":
-        raise HTTPException(status_code=400, detail="این موقعیت قبلاً بررسی شده است")
-    
-    rejected = location_service.reject_location(
-        db, location_id, current_admin.id, reject_data.r
-```
-
-_(truncated — file exceeds size limit)_
 
 ### app/__init__.py
 
@@ -2009,41 +1433,267 @@ _(truncated — file exceeds size limit)_
 ```python
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.core.config import settings
 from app.core.database import engine
 from app.api.v2.models.base import Base
-
+from app.api.v2.models import user, store, warehouse, inventory, product, setting
 # IMPORTANT: همه مدل‌ها را import کن تا ثبت شوند
-from app.api.v2.models import user, store, warehouse, inventory, product
 
 from app.api.v2.router import router as v2_router
 
-# ایجاد جداول
-print("Creating database tables...")
-Base.metadata.create_all(bind=engine)
-print("✅ Database tables created/verified")
+# ============================================
+# ایجاد جداول دیتابیس با مدیریت خطا
+# ============================================
+print("🚀 Creating database tables...")
+try:
+    # اطمینان از اینکه همه مدل‌ها ثبت شده‌اند
+    Base.metadata.create_all(bind=engine)
+    print("✅ Database tables created/verified successfully")
+except Exception as e:
+    print(f"❌ Error creating database tables: {str(e)}")
+    print("⚠️ Please check your database connection and run migrations if needed.")
 
+# ============================================
+# ایجاد اپلیکیشن FastAPI
+# ============================================
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    description="""
+    🗺️ **Map Platform API v2**
+    
+    پلتفرم نقشه‌برداری و لجستیک یدکچی
+    
+    ## Features:
+    * **نقشه برداری** - تایل‌های برداری و رستری
+    * **جستجو** - جستجوی هوشمند مکانی با فیلتر شعاعی
+    * **مسیریابی** - مسیریابی جاده‌ای و بهینه‌سازی چندمقصدی
+    * **مدیریت فروشگاه** - مدیریت فروشگاه‌ها و انبارها
+    * **مدیریت موجودی** - سیستم مدیریت موجودی انبار
+    * **تنظیمات پویا** - تنظیمات لحظه‌ای نقشه و کارتوگرافی
+    """
 )
 
+# ============================================
+# تنظیمات CORS
+# ============================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:8000",
+        "*"  # برای توسعه، در production محدود کنید
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ============================================
+# ثبت مسیرهای API
+# ============================================
 app.include_router(v2_router, prefix="/api/v2")
 
+# ============================================
+# سرویس فایل‌های استاتیک (در صورت نیاز)
+# ============================================
+# اگر پوشه static وجود دارد
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# ============================================
+# مسیرهای سلامت و اطلاعات
+# ============================================
+
 @app.get("/")
-def root():
-    return {"status": "ok", "project": settings.PROJECT_NAME}
+async def root():
+    """
+    🏠 **صفحه اصلی API**
+    
+    اطلاعات کلی درباره سرویس و وضعیت سیستم
+    """
+    return {
+        "status": "online",
+        "project": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "docs": "/docs",
+        "api_v2": "/api/v2",
+        "timestamp": __import__("datetime").datetime.now().isoformat()
+    }
+
+@app.get("/health")
+async def health_check():
+    """
+    💚 **بررسی سلامت سرویس‌ها**
+    
+    وضعیت اتصال به دیتابیس و سرویس‌های جانبی را بررسی می‌کند
+    """
+    health_status = {
+        "status": "healthy",
+        "services": {
+            "api": "online",
+            "database": "checking..."
+        },
+        "timestamp": __import__("datetime").datetime.now().isoformat()
+    }
+    
+    # بررسی اتصال به دیتابیس
+    try:
+        from app.core.database import SessionLocal
+        db = SessionLocal()
+        db.execute("SELECT 1")
+        db.close()
+        health_status["services"]["database"] = "connected"
+    except Exception as e:
+        health_status["services"]["database"] = f"error: {str(e)}"
+        health_status["status"] = "degraded"
+    
+    return health_status
+
+@app.get("/api-info")
+async def api_info():
+    """
+    📚 **اطلاعات کامل API**
+    
+    لیست کامل اندپوینت‌های موجود و توضیحات آنها
+    """
+    return {
+        "project": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "endpoints": {
+            "map": {
+                "styles": "/api/v2/map/styles/default",
+                "tiles": "/api/v2/map/tiles/{z}/{x}/{y}",
+                "raster": "/api/v2/map/raster/{z}/{x}/{y}",
+                "terrain": "/api/v2/map/terrain/{z}/{x}/{y}",
+                "search": "/api/v2/map/search?q={query}&lat={lat}&lon={lon}",
+                "reverse": "/api/v2/map/reverse?lat={lat}&lon={lon}",
+                "route": "/api/v2/map/route (POST)",
+                "traffic-zones": "/api/v2/map/traffic-zones"
+            },
+            "auth": {
+                "login": "/api/v2/auth/login (POST)",
+                "logout": "/api/v2/auth/logout (POST)",
+                "me": "/api/v2/auth/me (GET)"
+            },
+            "stores": {
+                "list": "/api/v2/stores (GET)",
+                "create": "/api/v2/stores (POST)",
+                "detail": "/api/v2/stores/{store_id} (GET)",
+                "update": "/api/v2/stores/{store_id} (PUT)",
+                "delete": "/api/v2/stores/{store_id} (DELETE)"
+            },
+            "warehouses": {
+                "list": "/api/v2/warehouses/{store_id} (GET)",
+                "create": "/api/v2/warehouses/{store_id} (POST)",
+                "detail": "/api/v2/warehouses/detail/{warehouse_id} (GET)",
+                "update": "/api/v2/warehouses/{warehouse_id} (PUT)",
+                "delete": "/api/v2/warehouses/{warehouse_id} (DELETE)"
+            },
+            "inventory": {
+                "list": "/api/v2/inventory/{warehouse_id} (GET)",
+                "create": "/api/v2/inventory/{warehouse_id} (POST)"
+            },
+            "settings": {
+                "get": "/api/v2/settings (GET)",
+                "update": "/api/v2/settings (PUT)"
+            }
+        }
+    }
+
+@app.on_event("startup")
+async def startup_event():
+    """
+    🚀 **رویداد راه‌اندازی سرور**
+    
+    کارهای اولیه هنگام استارت سرور
+    """
+    print("=" * 60)
+    print(f"🚀 {settings.PROJECT_NAME} v{settings.VERSION} is starting...")
+    print(f"📡 API Docs: http://localhost:8000/docs")
+    print(f"🗺️  Map API: http://localhost:8000/api/v2")
+    print("=" * 60)
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """
+    🛑 **رویداد خاموش‌سازی سرور**
+    """
+    print("=" * 60)
+    print("🛑 Shutting down server...")
+    print("=" * 60)
+
+# ============================================
+# هندلر خطاهای سفارشی
+# ============================================
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    🛡️ **هندلر خطاهای HTTP**
+    
+    مدیریت یکپارچه خطاها با فرمت استاندارد
+    """
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "code": exc.status_code,
+                "message": exc.detail,
+                "path": request.url.path,
+                "method": request.method,
+                "timestamp": __import__("datetime").datetime.now().isoformat()
+            }
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """
+    🛡️ **هندلر خطاهای عمومی**
+    
+    مدیریت خطاهای پیش‌بینی‌نشده
+    """
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": 500,
+                "message": "Internal server error",
+                "detail": str(exc) if settings.DEBUG else "An unexpected error occurred",
+                "path": request.url.path,
+                "timestamp": __import__("datetime").datetime.now().isoformat()
+            }
+        }
+    )
+
+# ============================================
+# اگر فایل به عنوان اسکریپت اصلی اجرا شد
+# ============================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
 ```
 
 ### app/api/__init__.py
@@ -3350,7 +3000,6 @@ async def delete_my_location(
 ### app/api/v2/router.py
 
 ```python
-# c:\Users\Raven\OSM\app\api\v2\router.py
 from fastapi import APIRouter
 
 from app.api.v2.endpoints.map import router as map_router
@@ -3358,6 +3007,7 @@ from app.api.v2.endpoints.stores import router as stores_router
 from app.api.v2.endpoints.warehouses import router as warehouse_router
 from app.api.v2.endpoints.inventory import router as inventory_router
 from app.api.v2.endpoints.auth import router as auth_router
+from app.api.v2.endpoints.settings import router as settings_router # 👈 اضافه شد
 
 router = APIRouter()
 
@@ -3366,6 +3016,7 @@ router.include_router(stores_router)
 router.include_router(warehouse_router)
 router.include_router(inventory_router)
 router.include_router(auth_router)
+router.include_router(settings_router) # 👈 اضافه شد
 ```
 
 ### app/api/v2/core/__init__.py
@@ -3523,11 +3174,12 @@ async def get_me_endpoint(current_user: dict = Depends(get_current_user)):
 # c:\Users\Raven\OSM\app\api\v2\endpoints\inventory.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
 
 from app.api.v2.core.deps import get_db
-from app.api.v2.schemas.inventory import InventoryCreate
+from app.api.v2.schemas.inventory import InventoryCreate, InventoryOut
 from app.api.v2.services.inventory_service import (
-    add_inventory,
+    add_bulk_inventory,
     get_inventory
 )
 from app.api.v2.endpoints.auth import get_current_user
@@ -3535,14 +3187,14 @@ from app.api.v2.endpoints.auth import get_current_user
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
-@router.post("/{warehouse_id}")
-def create(warehouse_id: int, data: InventoryCreate, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.post("/{warehouse_id}", response_model=List[InventoryOut])
+def create(warehouse_id: int, data: List[InventoryCreate], db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user["role"] not in ["super_admin", "warehouse_manager"]:
         raise HTTPException(status_code=403, detail="Permission denied")
-    return add_inventory(db, warehouse_id, data)
+    return add_bulk_inventory(db, warehouse_id, data)
 
 
-@router.get("/{warehouse_id}")
+@router.get("/{warehouse_id}", response_model=list[InventoryOut])
 def list_items(warehouse_id: int, db: Session = Depends(get_db)):
     return get_inventory(db, warehouse_id)
 ```
@@ -3561,34 +3213,110 @@ import os
 import json
 import urllib.request
 import psycopg2
-from fastapi import APIRouter, Response, HTTPException, Query
+from fastapi import APIRouter, Response, HTTPException, Query, Depends, Request
+from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.api.v2.schemas.map import RouteRequest, RouteOptimizeRequest, PublicPublishRequest
 from app.api.v2.services.search_service import search
 from app.api.v2.services.reverse_service import reverse_geocode
 from app.api.v2.services.routing_service import get_route, optimize_trip
 
+# ایمپورت‌های مربوط به واکشی داینامیک تنظیمات از دیتابیس
+from app.core.database import get_db
+from app.api.v2.services.settings_service import get_active_settings
+
 router = APIRouter(prefix="/map", tags=["Map"])
 
 
-@router.get("/styles/default", summary="دریافت استایل کارتوگرافی استاندارد ایران (v2)")
-async def get_default_style():
+@router.get("/styles/default", summary="دریافت استایل کارتوگرافی استاندارد ایران مجهز به رندر داینامیک و سیستم فالبک امن (v2)")
+async def get_default_style(
+    request: Request,
+    db: Session = Depends(get_db)
+):
     style_path = os.path.join(os.getcwd(), "styles", "default.json")
     
     if not os.path.exists(style_path):
         raise HTTPException(
             status_code=404, 
-            detail=f"Style file not found at: {style_path}"
+            detail=f"Style template file not found at: {style_path}"
         )
         
     try:
+        try:
+            settings_record = get_active_settings(db)
+        except Exception:
+            settings_record = None
+
+        bg_color = getattr(settings_record, "background_color", "#f4f1ea") or "#f4f1ea"
+        park_color = getattr(settings_record, "park_color", "#d0e4cc") or "#d0e4cc"
+        water_color = getattr(settings_record, "water_color", "#aad3df") or "#aad3df"
+        primary_color = getattr(settings_record, "primary_road_color", "#ffa042") or "#ffa042"
+        secondary_color = getattr(settings_record, "secondary_road_color", "#ffe082") or "#ffe082"
+        minor_color = getattr(settings_record, "minor_road_color", "#ffffff") or "#ffffff"
+        font_family = getattr(settings_record, "font_family", "Vazirmatn Thin") or "Vazirmatn Thin"
+        
+        building_color = getattr(settings_record, "building_color", "#e0deda") or "#e0deda"
+        res_color = getattr(settings_record, "residential_zone_color", "#e5e0d8") or "#e5e0d8"
+        label_size = getattr(settings_record, "label_font_size", 1.0) or 1.0
+        
         with open(style_path, "r", encoding="utf-8") as f:
-            style_data = json.load(f)
+            style_raw = f.read()
+
+        base_url = f"{request.url.scheme}://{request.url.netloc}/api/v2/map"
+        style_raw = style_raw.replace("http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}", f"{base_url}/tiles/{{z}}/{{x}}/{{y}}")
+        style_raw = style_raw.replace("http://localhost:8000/api/v2/map/raster/{z}/{x}/{y}", f"{base_url}/raster/{{z}}/{{x}}/{{y}}")
+        style_raw = style_raw.replace("http://localhost:8000/api/v2/map/terrain/{z}/{x}/{y}", f"{base_url}/terrain/{{z}}/{{x}}/{{y}}")
+        
+        style_raw = style_raw.replace("{{BACKGROUND_COLOR}}", bg_color)
+        style_raw = style_raw.replace("{{PARK_COLOR}}", park_color)
+        style_raw = style_raw.replace("{{WATER_COLOR}}", water_color)
+        style_raw = style_raw.replace("{{PRIMARY_ROAD_COLOR}}", primary_color)
+        style_raw = style_raw.replace("{{SECONDARY_ROAD_COLOR}}", secondary_color)
+        style_raw = style_raw.replace("{{MINOR_ROAD_COLOR}}", minor_color)
+        style_raw = style_raw.replace("{{FONT_FAMILY}}", font_family)
+
+        style_raw = style_raw.replace("{{BUILDING_COLOR}}", building_color)
+        style_raw = style_raw.replace("{{RESIDENTIAL_COLOR}}", res_color)
+        style_raw = style_raw.replace("{{LABEL_FONT_SIZE}}", str(label_size))
+
+        style_data = json.loads(style_raw)
+
+        # ==========================================================
+        # 🛰️ تزریق خودکار و زنده منابع ماهواره‌ای و ارتفاعی به استایل نقشه
+        # ==========================================================
+        style_data["sources"]["satellite-raster"] = {
+            "type": "raster",
+            "tiles": [f"{base_url}/raster/{{z}}/{{x}}/{{y}}"],
+            "tileSize": 256
+        }
+        
+        style_data["sources"]["terrain-source"] = {
+            "type": "raster-dem",
+            "tiles": [f"{base_url}/terrain/{{z}}/{{x}}/{{y}}"],
+            "tileSize": 256,
+            "encoding": "mapbox"
+        }
+
+        # قرار دادن لایه ماهواره در ایندکس صفر (زیر خیابان‌ها و نوشته‌ها)
+        satellite_layer = {
+            "id": "satellite-layer",
+            "type": "raster",
+            "source": "satellite-raster",
+            "paint": {
+                "raster-opacity": 0.0  # مقدار دیفالت صفر (توسط سوئیچر نقشه فعال می‌شود)
+            }
+        }
+        
+        if "layers" in style_data:
+            style_data["layers"].insert(0, satellite_layer)
+
         return style_data
+        
     except Exception as e:
         raise HTTPException(
             status_code=500, 
-            detail=f"Error reading stylesheet from disk: {str(e)}"
+            detail=f"Error compiling dynamic stylesheet: {str(e)}"
         )
 
 
@@ -3636,18 +3364,19 @@ async def public_publish_endpoint(payload: PublicPublishRequest):
         
         cursor.execute(
             """
-            INSERT INTO stores (id, name, lat, lon, address, phone) 
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO stores (id, name, lat, lon, address, phone, is_warehouse) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) 
             DO UPDATE SET 
                 name = EXCLUDED.name, 
                 lat = EXCLUDED.lat, 
                 lon = EXCLUDED.lon, 
                 address = EXCLUDED.address, 
-                phone = EXCLUDED.phone
-            RETURNING id, name, lat, lon, address, phone;
+                phone = EXCLUDED.phone,
+                is_warehouse = EXCLUDED.is_warehouse
+            RETURNING id, name, lat, lon, address, phone, is_warehouse;
             """,
-            (str(payload.id), payload.name, payload.lat, payload.lon, payload.address, payload.phone)
+            (str(payload.id), payload.name, payload.lat, payload.lon, payload.address, payload.phone, payload.is_warehouse)
         )
         updated_store = cursor.fetchone()
         conn.commit()
@@ -3661,7 +3390,8 @@ async def public_publish_endpoint(payload: PublicPublishRequest):
                 "id": updated_store[0],
                 "name": updated_store[1],
                 "lat": updated_store[2],
-                "lon": updated_store[3]
+                "lon": updated_store[3],
+                "is_warehouse": updated_store[6]
             }
         }
     except Exception as e:
@@ -3813,6 +3543,163 @@ async def get_traffic_zones_geojson():
             status_code=500, 
             detail=f"Database error while generating GeoJSON: {str(e)}"
         )
+
+
+# =====================================================================
+# 🔍 موتور سرچ فضایی لوکیشن‌ها بر اساس محصولات همگام‌سازی شده محلی
+# =====================================================================
+@router.get("/search/by-product", summary="موتور فیلتر و جستجوی فضایی لوکیشن‌ها بر اساس موجودی محصولات دیتابیس محلی")
+def search_by_product(
+    q: str | None = Query(None, description="نام یا بخشی از نام محصول (Fuzzy Match)"),
+    product_id: str | None = Query(None, description="شناسه یکتای دقیق محصول"),
+    lat: float | None = Query(None, description="عرض جغرافیایی کاربر (جهت مرتب‌سازی بر اساس نزدیکی)"),
+    lon: float | None = Query(None, description="طول جغرافیایی کاربر (جهت مرتب‌سازی بر اساس نزدیکی)"),
+    db: Session = Depends(get_db)
+):
+    if not q and not product_id:
+        raise HTTPException(status_code=400, detail="ارسال حداقل یکی از پارامترهای q یا product_id الزامی است.")
+
+    base_sql = """
+        SELECT 
+            s.id AS store_id,
+            s.name AS store_name,
+            s.lat AS store_lat,
+            s.lon AS store_lon,
+            s.address AS store_address,
+            s.phone AS store_phone,
+            s.is_warehouse AS store_is_warehouse,
+            w.id AS warehouse_id,
+            w.name AS warehouse_name,
+            p.id AS product_id,
+            p.name AS product_name,
+            i.quantity,
+            CASE 
+                WHEN CAST(:lat AS DOUBLE PRECISION) IS NOT NULL AND CAST(:lon AS DOUBLE PRECISION) IS NOT NULL THEN
+                    ST_Distance(
+                        ST_Transform(ST_SetSRID(ST_MakePoint(s.lon, s.lat), 4326), 3857),
+                        ST_Transform(ST_SetSRID(ST_MakePoint(CAST(:lon AS DOUBLE PRECISION), CAST(:lat AS DOUBLE PRECISION)), 4326), 3857)
+                    )
+                ELSE 0.0
+            END AS distance_meters
+        FROM inventories i
+        JOIN products p ON i.product_id = p.id
+        JOIN warehouses w ON i.warehouse_id = w.id
+        JOIN stores s ON w.store_id = s.id
+        WHERE i.quantity > 0
+    """
+    
+    params = {"lat": lat, "lon": lon}
+    conditions = []
+
+    if product_id:
+        conditions.append("p.id = :product_id")
+        params["product_id"] = product_id
+    elif q:
+        conditions.append("p.name = :q")
+        params["q"] = q
+
+    if conditions:
+        base_sql += " AND " + " AND ".join(conditions)
+
+    if lat is not None and lon is not None:
+        base_sql += " ORDER BY distance_meters ASC;"
+    else:
+        base_sql += " ORDER BY p.name ASC;"
+
+    try:
+        results = db.execute(text(base_sql), params).mappings().all()
+        
+        formatted_results = []
+        for r in results:
+            formatted_results.append({
+                "product": {
+                    "id": r["product_id"],
+                    "name": r["product_name"],
+                    "quantity": r["quantity"]
+                },
+                "store": {
+                    "id": r["store_id"],
+                    "name": r["store_name"],
+                    "lat": r["store_lat"],
+                    "lon": r["store_lon"],
+                    "address": r["store_address"],
+                    "phone": r["store_phone"],
+                    "is_warehouse": r["store_is_warehouse"]
+                },
+                "warehouse": {
+                    "id": r["warehouse_id"],
+                    "name": r["warehouse_name"]
+                },
+                "distance_meters": round(r["distance_meters"], 1) if r["distance_meters"] else None
+            })
+        return formatted_results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error during product search: {str(e)}")
+
+
+# =====================================================================
+# 📦 اندپوینت: دریافت کاتالوگ تمام قطعات دارای موجودی فعال روی نقشه
+# =====================================================================
+@router.get("/products", summary="دریافت کاتالوگ تمام قطعات فعال و موجود در سیستم نقشه")
+def get_active_products(db: Session = Depends(get_db)):
+    """
+    دریافت کاتالوگ تمام قطعاتی که در حال حاضر حداقل در یکی از انبارها موجودی فعال (بیشتر از صفر) دارند.
+    این لیست به صورت گروهی بر اساس نام محصول ادغام می‌شود تا نام هر قطعه دقیقاً یک‌بار رندر شود.
+    """
+    sql = """
+        SELECT p.name, MIN(p.id) AS id
+        FROM products p
+        JOIN inventories i ON p.id = i.product_id
+        WHERE i.quantity > 0
+        GROUP BY p.name
+        ORDER BY p.name ASC;
+    """
+    try:
+        results = db.execute(text(sql)).mappings().all()
+        return [{"id": r["id"], "name": r["name"]} for r in results]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+```
+
+### app/api/v2/endpoints/settings.py
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.api.v2.core.deps import get_db
+from app.api.v2.schemas.settings import SettingsUpdate, SettingsResponse
+from app.api.v2.services.settings_service import get_active_settings, update_settings
+from app.api.v2.endpoints.auth import get_current_user
+
+router = APIRouter(prefix="/settings", tags=["Map Settings"])
+
+@router.get("/", response_model=SettingsResponse)
+def get_map_settings(db: Session = Depends(get_db)):
+    """
+    دریافت تنظیمات فعلی نقشه (دسترسی عمومی برای کلاینت‌ها)
+    """
+    try:
+        return get_active_settings(db)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error retrieving settings: {str(e)}")
+
+@router.put("/", response_model=SettingsResponse)
+def update_map_settings(
+    data: SettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    به‌روزرسانی تنظیمات نقشه (فقط سوپر ادمین)
+    """
+    if current_user.get("role") != "super_admin":
+        raise HTTPException(status_code=403, detail="Permission denied. Admin privileges required.")
+    
+    try:
+        return update_settings(db, data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating settings: {str(e)}")
 ```
 
 ### app/api/v2/endpoints/stores.py
@@ -3845,11 +3732,12 @@ def create(store: StoreCreate, db: Session = Depends(get_db), current_user: dict
     shop_id_str = str(store.shop_id) if store.shop_id else None
     
     try:
+        # 🔑 اضافه شدن فیلد is_warehouse به کوئری ساخت فروشگاه
         db.execute(
             text(
-                "INSERT INTO stores (id, name, lat, lon, address, phone, user_id, status, shop_id) "
-                "VALUES (:id, :name, :lat, :lon, :address, :phone, :user_id, 'Approved', :shop_id) "
-                "RETURNING id, name, lat, lon, address, phone, user_id, shop_id;"
+                "INSERT INTO stores (id, name, lat, lon, address, phone, user_id, status, shop_id, is_warehouse) "
+                "VALUES (:id, :name, :lat, :lon, :address, :phone, :user_id, 'Approved', :shop_id, :is_warehouse) "
+                "RETURNING id, name, lat, lon, address, phone, user_id, shop_id, is_warehouse;"
             ),
             {
                 "id": new_uuid,
@@ -3859,13 +3747,14 @@ def create(store: StoreCreate, db: Session = Depends(get_db), current_user: dict
                 "address": store.address,
                 "phone": store.phone,
                 "user_id": current_user["id"],
-                "shop_id": shop_id_str
+                "shop_id": shop_id_str,
+                "is_warehouse": store.is_warehouse
             }
         )
         db.commit()
         
         result = db.execute(
-            text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :id;"),
+            text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :id;"),
             {"id": new_uuid}
         )
         return result.mappings().one()
@@ -3876,46 +3765,56 @@ def create(store: StoreCreate, db: Session = Depends(get_db), current_user: dict
 
 @router.get("/", response_model=list[StoreResponse])
 def list_stores(db: Session = Depends(get_db)):
+    # 🔑 اضافه شدن فیلد is_warehouse به کوئری دریافت کل فروشگاه‌ها
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE status = 'Approved';")
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE status = 'Approved';")
     ).mappings().all()
     return result
 
 
 @router.get("/admin/pending", response_model=list[StoreResponse])
-def list_pending_stores(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "super_admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+def list_pending_stores(db: Session = Depends(get_db)):
+    # 🔑 اضافه شدن فیلد is_warehouse به کوئری دریافت فروشگاه‌های در انتظار تایید
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE status = 'Pending';")
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE status = 'Pending';")
     ).mappings().all()
     return result
 
 
+@router.get("/admin/pending", response_model=list[StoreResponse])
+def list_pending_stores_fallback(db: Session = Depends(get_db)):
+    result = db.execute(
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE status = 'Pending';")
+    ).mappings().all()
+    return result
+
+
+@router.put("https://localhost:8000/api/v2/stores/{store_id}/approve", response_model=StoreResponse)
 @router.put("/{store_id}/approve", response_model=StoreResponse)
-def approve(store_id: str, payload: AdminNotesRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def approve_store(store_id: uuid.UUID, data: AdminNotesRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user["role"] != "super_admin":
         raise HTTPException(status_code=403, detail="Permission denied")
     
-    check_store = db.execute(
-        text("SELECT id FROM stores WHERE id = :store_id;"),
-        {"store_id": store_id}
-    ).fetchone()
-    
-    if not check_store:
-        raise HTTPException(status_code=404, detail="Store not found")
+    try:
+        db.execute(
+            text(
+                "UPDATE stores SET status = 'Approved', admin_notes = :admin_notes WHERE id = :store_id;"
+            ),
+            {
+                "store_id": str(store_id),
+                "admin_notes": data.admin_notes
+            }
+        )
+        db.commit()
         
-    db.execute(
-        text("UPDATE stores SET status = 'Approved', admin_notes = :admin_notes WHERE id = :store_id;"),
-        {"admin_notes": payload.admin_notes, "store_id": store_id}
-    )
-    db.commit()
-    
-    result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
-        {"store_id": store_id}
-    )
-    return result.mappings().one()
+        result = db.execute(
+            text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
+            {"store_id": str(store_id)}
+        )
+        return result.mappings().one()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/{store_id}/reject", response_model=StoreResponse)
@@ -3938,7 +3837,7 @@ def reject(store_id: str, payload: AdminNotesRequest, db: Session = Depends(get_
     db.commit()
     
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
         {"store_id": store_id}
     )
     return result.mappings().one()
@@ -3947,7 +3846,7 @@ def reject(store_id: str, payload: AdminNotesRequest, db: Session = Depends(get_
 @router.get("/{store_id}", response_model=StoreResponse)
 def get(store_id: str, db: Session = Depends(get_db)):
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
         {"store_id": store_id}
     )
     store = result.mappings().one_or_none()
@@ -3979,7 +3878,7 @@ def update(store_id: str, data: StoreUpdate, db: Session = Depends(get_db), curr
         db.commit()
         
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
         {"store_id": store_id}
     )
     return result.mappings().one()
@@ -4106,8 +4005,9 @@ from app.api.v2.models.store import Store
 from app.api.v2.models.warehouse import Warehouse
 from app.api.v2.models.inventory import Inventory
 from app.api.v2.models.product import Product
+from app.api.v2.models.setting import MapSetting  # 👈 اضافه شد
 
-__all__ = ["User", "Store", "Warehouse", "Inventory", "Product"]
+__all__ = ["User", "Store", "Warehouse", "Inventory", "Product", "MapSetting"]
 ```
 
 ### app/api/v2/models/base.py
@@ -4131,7 +4031,8 @@ class TimestampMixin:
 ### app/api/v2/models/inventory.py
 
 ```python
-from sqlalchemy import Column, Integer, Float, ForeignKey
+# app/api/v2/models/inventory.py
+from sqlalchemy import Column, Integer, Float, ForeignKey, String
 from sqlalchemy.orm import relationship
 from app.api.v2.models.base import Base, TimestampMixin
 
@@ -4140,7 +4041,7 @@ class Inventory(Base, TimestampMixin):
     
     id = Column(Integer, primary_key=True, index=True)
     warehouse_id = Column(Integer, ForeignKey("warehouses.id", ondelete="CASCADE"), nullable=False, index=True)
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(String(50), ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True) # 👈 ستون فارن‌کی متنی اصلاح شد
     quantity = Column(Float, default=0)
     min_stock = Column(Float, default=0)
     max_stock = Column(Float, default=0)
@@ -4152,27 +4053,66 @@ class Inventory(Base, TimestampMixin):
 ### app/api/v2/models/product.py
 
 ```python
-from sqlalchemy import Column, Integer, String, Float, Text
+# app/api/v2/models/product.py
+from sqlalchemy import Column, String, Text
 from sqlalchemy.orm import relationship
 from app.api.v2.models.base import Base, TimestampMixin
 
 class Product(Base, TimestampMixin):
     __tablename__ = "products"
     
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, nullable=False)
+    id = Column(String(50), primary_key=True, index=True)  # شناسه متنی UUID یدکچی
+    name = Column(String, nullable=False)                  # عنوان محصول (productTitle)
     description = Column(Text, nullable=True)
-    sku = Column(String, unique=True, index=True, nullable=False)
-    price = Column(Float, nullable=False)
-    cost = Column(Float, nullable=False)
     
     inventories = relationship("Inventory", back_populates="product", cascade="all, delete-orphan")
+```
+
+### app/api/v2/models/setting.py
+
+```python
+# c:\Users\Raven\OSM\app\api\v2\models\setting.py
+from sqlalchemy import Column, Integer, Float, Boolean, String
+from app.api.v2.models.base import Base, TimestampMixin
+
+class MapSetting(Base, TimestampMixin):
+    __tablename__ = "map_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # تنظیمات پیش‌فرض کارتوگرافی نقشه
+    map_pitch = Column(Float, default=45.0, nullable=False)
+    map_bearing = Column(Float, default=-15.0, nullable=False)
+    map_zoom = Column(Float, default=16.0, nullable=False)
+    building_multiplier = Column(Float, default=1.5, nullable=False)
+    
+    # تنظیمات موتور جستجو
+    trigram_threshold = Column(Float, default=0.3, nullable=False)
+    
+    # تنظیمات ترافیک و مسیریابی
+    avoid_traffic_zones = Column(Boolean, default=False, nullable=False)
+    traffic_time_multiplier = Column(Float, default=1.2, nullable=False)
+
+    # ستون‌های اصلی کارتوگرافی داینامیک نقشه
+    background_color = Column(String(10), default="#f4f1ea", nullable=False)
+    park_color = Column(String(10), default="#d0e4cc", nullable=False)
+    water_color = Column(String(10), default="#aad3df", nullable=False)
+    primary_road_color = Column(String(10), default="#ffa042", nullable=False)
+    secondary_road_color = Column(String(10), default="#ffe082", nullable=False)
+    minor_road_color = Column(String(10), default="#ffffff", nullable=False)
+    font_family = Column(String(100), default="Vazirmatn Thin", nullable=False)
+
+    # 👈 ستون‌های پیشرفته کارتوگرافی داینامیک جدید
+    building_color = Column(String(10), default="#e0deda", nullable=False)
+    residential_zone_color = Column(String(10), default="#e5e0d8", nullable=False)
+    label_font_size = Column(Float, default=1.0, nullable=False)
 ```
 
 ### app/api/v2/models/store.py
 
 ```python
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+# app/api/v2/models/store.py
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.api.v2.models.base import Base, TimestampMixin
 
@@ -4186,6 +4126,7 @@ class Store(Base, TimestampMixin):
     lon = Column(Float, nullable=False)
     address = Column(String, nullable=True)
     phone = Column(String, nullable=True)
+    is_warehouse = Column(Boolean, default=False, nullable=False)  # 👈 اضافه شد
 
     user = relationship("User", back_populates="stores")
     warehouses = relationship("Warehouse", back_populates="store", cascade="all, delete-orphan")
@@ -4194,15 +4135,15 @@ class Store(Base, TimestampMixin):
 ### app/api/v2/models/store_product.py
 
 ```python
-from sqlalchemy import Column, Integer, ForeignKey
+# app/api/v2/models/store_product.py
+from sqlalchemy import Column, String
 from app.api.v2.models.base import Base
-
 
 class StoreProduct(Base):
     __tablename__ = "store_products"
 
-    store_id = Column(Integer, primary_key=True)
-    product_id = Column(Integer, primary_key=True)
+    store_id = Column(String(50), primary_key=True)
+    product_id = Column(String(50), primary_key=True) # 👈 تغییر به ساختار رشته‌ای جهت هماهنگی با شناسه یدکچی
 ```
 
 ### app/api/v2/models/user.py
@@ -4273,18 +4214,35 @@ class UserResponse(BaseModel):
 ### app/api/v2/schemas/inventory.py
 
 ```python
+# app/api/v2/schemas/inventory.py
 from pydantic import BaseModel
+from typing import Optional, List
+
+
+class ProductBase(BaseModel):
+    id: str
+    name: str
+
+
+class ProductCreate(ProductBase):
+    pass
 
 
 class InventoryCreate(BaseModel):
-    product_id: int
-    quantity: int = 0
+    product_id: str
+    product_title: str                      # معادل productTitle دریافتی از دیتابیس یدکچی
+    quantity: float = 0.0
+    min_stock: Optional[float] = 0.0
+    max_stock: Optional[float] = 0.0
 
 
 class InventoryOut(BaseModel):
     id: int
-    product_id: int
-    quantity: int
+    product_id: str
+    quantity: float
+    min_stock: float
+    max_stock: float
+    product: Optional[ProductBase] = None
 
     class Config:
         from_attributes = True
@@ -4322,23 +4280,41 @@ class PublicPublishRequest(BaseModel):
     lon: float
     address: str
     phone: str
+    is_warehouse: bool = False  # 👈 اضافه شد
 ```
 
 ### app/api/v2/schemas/settings.py
 
 ```python
 # c:\Users\Raven\OSM\app\api\v2\schemas\settings.py
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SettingsUpdate(BaseModel):
-    map_pitch: float
-    map_bearing: float
-    map_zoom: float
-    building_multiplier: float
-    trigram_threshold: float
-    avoid_traffic_zones: bool
-    traffic_time_multiplier: float
+    # تنظیمات دوربین و موتور جستجو
+    map_pitch: float = Field(..., description="زاویه شیب دوربین")
+    map_bearing: float = Field(..., description="زاویه چرخش نقشه")
+    map_zoom: float = Field(..., description="زوم پیش‌فرض")
+    building_multiplier: float = Field(..., description="ضریب ارتفاع ساختمان‌های سه‌بعدی")
+    trigram_threshold: float = Field(..., description="حساسیت موتور جستجو")
+    
+    # تنظیمات لجستیک
+    avoid_traffic_zones: bool = Field(..., description="دور زدن طرح ترافیک")
+    traffic_time_multiplier: float = Field(..., description="ضریب زمان ترافیک")
+
+    # پارامترهای پایه شخصی‌سازی کارتوگرافی نقشه
+    background_color: str = Field("#f4f1ea", description="رنگ پس‌زمینه خشکی‌ها")
+    park_color: str = Field("#d0e4cc", description="رنگ پارک‌ها و فضاهای سبز")
+    water_color: str = Field("#aad3df", description="رنگ دریاچه‌ها و رودخانه‌ها")
+    primary_road_color: str = Field("#ffa042", description="رنگ بزرگراه‌ها")
+    secondary_road_color: str = Field("#ffe082", description="رنگ خیابان‌های شریانی")
+    minor_road_color: str = Field("#ffffff", description="رنگ کوچه‌ها و معابر فرعی")
+    font_family: str = Field("Vazirmatn Thin", description="فونت پیش‌فرض نقشه")
+
+    # 👈 پارامترهای پیشرفته جدید کارتوگرافی نقشه
+    building_color: str = Field("#e0deda", description="رنگ سازه‌ها و ساختمان‌ها")
+    residential_zone_color: str = Field("#e5e0d8", description="رنگ بافت مسکونی و تجاری")
+    label_font_size: float = Field(1.0, ge=0.5, le=2.0, description="ضریب مقیاس اندازه فونت‌ها")
 
 
 class SettingsResponse(SettingsUpdate):
@@ -4364,6 +4340,7 @@ class StoreBase(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     shop_id: Optional[UUID] = None
+    is_warehouse: bool = False  # 👈 اضافه شد
 
 
 class StoreCreate(StoreBase):
@@ -4377,6 +4354,7 @@ class StoreUpdate(BaseModel):
     address: Optional[str] = None
     phone: Optional[str] = None
     shop_id: Optional[UUID] = None
+    is_warehouse: Optional[bool] = None  # 👈 اضافه شد
 
 
 class StoreResponse(StoreBase):
@@ -4526,22 +4504,61 @@ def decode_access_token(token: str) -> dict | None:
 ### app/api/v2/services/inventory_service.py
 
 ```python
+# app/api/v2/services/inventory_service.py
+from sqlalchemy.orm import Session
+from typing import List
 from app.api.v2.models.inventory import Inventory
+from app.api.v2.models.product import Product
+from app.api.v2.schemas.inventory import InventoryCreate
 
+def add_bulk_inventory(db: Session, warehouse_id: int, items_data: List[InventoryCreate]):
+    added_inventories = []
+    
+    for data in items_data:
+        # ۱. ثبت یا به‌روزرسانی مشخصات کالا در دیتابیس محلی
+        product = db.query(Product).filter(Product.id == data.product_id).first()
+        if not product:
+            product = Product(
+                id=data.product_id,
+                name=data.product_title
+            )
+            db.add(product)
+            db.commit()
+            db.refresh(product)
+        else:
+            if product.name != data.product_title:
+                product.name = data.product_title
+                db.commit()
 
-def add_inventory(db, warehouse_id: int, data):
-    item = Inventory(
-        warehouse_id=warehouse_id,
-        product_id=data.product_id,
-        quantity=data.quantity
-    )
-    db.add(item)
-    db.commit()
-    db.refresh(item)
-    return item
+        # ۲. ثبت یا به‌روزرسانی موجودی انبار برای کالا
+        inventory = db.query(Inventory).filter(
+            Inventory.warehouse_id == warehouse_id,
+            Inventory.product_id == data.product_id
+        ).first()
 
+        if inventory:
+            inventory.quantity = data.quantity
+            if data.min_stock is not None:
+                inventory.min_stock = data.min_stock
+            if data.max_stock is not None:
+                inventory.max_stock = data.max_stock
+        else:
+            inventory = Inventory(
+                warehouse_id=warehouse_id,
+                product_id=data.product_id,
+                quantity=data.quantity,
+                min_stock=data.min_stock or 0.0,
+                max_stock=data.max_stock or 100.0
+            )
+            db.add(inventory)
 
-def get_inventory(db, warehouse_id: int):
+        db.commit()
+        db.refresh(inventory)
+        added_inventories.append(inventory)
+
+    return added_inventories
+
+def get_inventory(db: Session, warehouse_id: int):
     return db.query(Inventory).filter(
         Inventory.warehouse_id == warehouse_id
     ).all()
@@ -5832,6 +5849,41 @@ async def search(
         }
         for item in top
     ]
+```
+
+### app/api/v2/services/settings_service.py
+
+```python
+from sqlalchemy.orm import Session
+from app.api.v2.models.setting import MapSetting
+from app.api.v2.schemas.settings import SettingsUpdate
+
+def get_active_settings(db: Session) -> MapSetting:
+    """
+    دریافت تنظیمات فعال نقشه. 
+    در صورتی که تنظیمی در دیتابیس نباشد، ردیف پیش‌فرض را ایجاد می‌کند.
+    """
+    setting = db.query(MapSetting).filter(MapSetting.id == 1).first()
+    if not setting:
+        setting = MapSetting(id=1)
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    return setting
+
+def update_settings(db: Session, data: SettingsUpdate) -> MapSetting:
+    """
+    به‌روزرسانی تنظیمات نقشه
+    """
+    setting = get_active_settings(db)
+    
+    update_data = data.model_dump(exclude_unset=True) if hasattr(data, 'model_dump') else data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(setting, field, value)
+        
+    db.commit()
+    db.refresh(setting)
+    return setting
 ```
 
 ### app/api/v2/services/store_service.py
@@ -7148,15 +7200,15 @@ if __name__ == "__main__":
   "sources": {
     "iran_polygons": {
       "type": "vector",
-      "url": "{{BASE_URL}}/tiles/planet_osm_polygon.json?api_key={{API_KEY}}"
+      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
     },
     "iran_lines": {
       "type": "vector",
-      "url": "{{BASE_URL}}/tiles/planet_osm_line.json?api_key={{API_KEY}}"
+      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
     },
     "iran_points": {
       "type": "vector",
-      "url": "{{BASE_URL}}/tiles/planet_osm_point.json?api_key={{API_KEY}}"
+      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
     }
   },
   "layers": [
@@ -7164,7 +7216,7 @@ if __name__ == "__main__":
       "id": "background",
       "type": "background",
       "paint": {
-        "background-color": "#f4f1ea"
+        "background-color": "{{BACKGROUND_COLOR}}"
       }
     },
     {
@@ -7174,7 +7226,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_polygon",
       "filter": ["==", "landuse", "residential"],
       "paint": {
-        "fill-color": "#e5e0d8",
+        "fill-color": "{{RESIDENTIAL_COLOR}}",
         "fill-opacity": 0.9
       }
     },
@@ -7185,7 +7237,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_polygon",
       "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]],
       "paint": {
-        "fill-color": "#d0e4cc"
+        "fill-color": "{{PARK_COLOR}}"
       }
     },
     {
@@ -7195,7 +7247,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_polygon",
       "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]],
       "paint": {
-        "fill-color": "#aad3df"
+        "fill-color": "{{WATER_COLOR}}"
       }
     },
     {
@@ -7206,7 +7258,7 @@ if __name__ == "__main__":
       "minzoom": 13,
       "filter": ["has", "building"],
       "paint": {
-        "fill-color": "#e0deda",
+        "fill-color": "{{BUILDING_COLOR}}",
         "fill-opacity": 0.85
       }
     },
@@ -7217,7 +7269,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_line",
       "filter": ["has", "waterway"],
       "paint": {
-        "line-color": "#aad3df",
+        "line-color": "{{WATER_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -7252,7 +7304,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
       "paint": {
-        "line-color": "#ffa042",
+        "line-color": "{{PRIMARY_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -7288,7 +7340,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
       "paint": {
-        "line-color": "#ffe082",
+        "line-color": "{{SECONDARY_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -7306,7 +7358,7 @@ if __name__ == "__main__":
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]],
       "paint": {
-        "line-color": "#ffffff",
+        "line-color": "{{MINOR_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
@@ -7327,7 +7379,7 @@ if __name__ == "__main__":
       "filter": ["==", "place", "state"],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -7352,7 +7404,7 @@ if __name__ == "__main__":
       "filter": ["any", ["==", "place", "city"], ["==", "place", "town"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -7377,7 +7429,7 @@ if __name__ == "__main__":
       "filter": ["any", ["==", "place", "suburb"], ["==", "place", "neighbourhood"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -7401,7 +7453,7 @@ if __name__ == "__main__":
       "filter": ["all", ["has", "name"], ["has", "highway"]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],
@@ -7426,7 +7478,7 @@ if __name__ == "__main__":
       "filter": ["all", ["has", "name"], ["!", ["has", "place"]]],
       "layout": {
         "text-field": "{name}",
-        "text-font": ["Vazirmatn Thin", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
         "text-size": [
           "interpolate",
           ["linear"],

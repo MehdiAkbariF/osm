@@ -5,6 +5,7 @@ import urllib.request
 import psycopg2
 from fastapi import APIRouter, Response, HTTPException, Query, Depends, Request
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 from app.api.v2.schemas.map import RouteRequest, RouteOptimizeRequest, PublicPublishRequest
 from app.api.v2.services.search_service import search
@@ -32,13 +33,11 @@ async def get_default_style(
         )
         
     try:
-        # ۱. تلاش برای واکشی تنظیمات دیتابیس به صورت کاملاً امن
         try:
             settings_record = get_active_settings(db)
         except Exception:
             settings_record = None
 
-        # ۲. استفاده از متدهای پیش‌فرض (فالبک) در صورت عدم وجود ستون یا نال بودن مقدار دیتابیس
         bg_color = getattr(settings_record, "background_color", "#f4f1ea") or "#f4f1ea"
         park_color = getattr(settings_record, "park_color", "#d0e4cc") or "#d0e4cc"
         water_color = getattr(settings_record, "water_color", "#aad3df") or "#aad3df"
@@ -47,22 +46,18 @@ async def get_default_style(
         minor_color = getattr(settings_record, "minor_road_color", "#ffffff") or "#ffffff"
         font_family = getattr(settings_record, "font_family", "Vazirmatn Thin") or "Vazirmatn Thin"
         
-        # واکشی فیلدهای پیشرفته جدید از دیتابیس یا مقادیر فالبک
         building_color = getattr(settings_record, "building_color", "#e0deda") or "#e0deda"
         res_color = getattr(settings_record, "residential_zone_color", "#e5e0d8") or "#e5e0d8"
         label_size = getattr(settings_record, "label_font_size", 1.0) or 1.0
         
-        # ۳. خواندن قالب استایل خام کارتوگرافی
         with open(style_path, "r", encoding="utf-8") as f:
             style_raw = f.read()
 
-        # ۴. تزریق داینامیک آدرس تایل‌ها بر اساس دامنه فعال درخواست‌کننده
         base_url = f"{request.url.scheme}://{request.url.netloc}/api/v2/map"
         style_raw = style_raw.replace("http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}", f"{base_url}/tiles/{{z}}/{{x}}/{{y}}")
         style_raw = style_raw.replace("http://localhost:8000/api/v2/map/raster/{z}/{x}/{y}", f"{base_url}/raster/{{z}}/{{x}}/{{y}}")
         style_raw = style_raw.replace("http://localhost:8000/api/v2/map/terrain/{z}/{x}/{y}", f"{base_url}/terrain/{{z}}/{{x}}/{{y}}")
         
-        # ۵. جایگذاری داینامیک و زنده پارامترهای رنگ‌بندی و فونت پایه با امنیت بالا
         style_raw = style_raw.replace("{{BACKGROUND_COLOR}}", bg_color)
         style_raw = style_raw.replace("{{PARK_COLOR}}", park_color)
         style_raw = style_raw.replace("{{WATER_COLOR}}", water_color)
@@ -71,13 +66,43 @@ async def get_default_style(
         style_raw = style_raw.replace("{{MINOR_ROAD_COLOR}}", minor_color)
         style_raw = style_raw.replace("{{FONT_FAMILY}}", font_family)
 
-        # جایگذاری متغیرهای پیشرفته جدید کارتوگرافی در فایل استایل
         style_raw = style_raw.replace("{{BUILDING_COLOR}}", building_color)
         style_raw = style_raw.replace("{{RESIDENTIAL_COLOR}}", res_color)
-        style_raw = style_raw.replace("{{LABEL_FONT_SIZE}}", str(label_size))
+        
+        # جایگزینی سایز فونت بدون نقل‌قول
+        style_raw = style_raw.replace('"{{LABEL_FONT_SIZE}}"', str(label_size))
 
-        # تبدیل رشته نهایی به ساختار استاندارد JSON
         style_data = json.loads(style_raw)
+
+        # ==========================================================
+        # 🛰️ تزریق خودکار منابع ماهواره‌ای و ارتفاعی با تصحیح پرانتزهای دوبل f-string
+        # ==========================================================
+        style_data["sources"]["satellite-raster"] = {
+            "type": "raster",
+            "tiles": [f"{base_url}/raster/{{z}}/{{x}}/{{y}}"],
+            "tileSize": 256
+        }
+        
+        style_data["sources"]["terrain-source"] = {
+            "type": "raster-dem",
+            "tiles": [f"{base_url}/terrain/{{z}}/{{x}}/{{y}}"],
+            "tileSize": 256,
+            "encoding": "mapbox"
+        }
+
+        # قرار دادن لایه ماهواره در ایندکس صفر (زیر خیابان‌ها و نوشته‌ها)
+        satellite_layer = {
+            "id": "satellite-layer",
+            "type": "raster",
+            "source": "satellite-raster",
+            "paint": {
+                "raster-opacity": 0.0  
+            }
+        }
+        
+        if "layers" in style_data:
+            style_data["layers"].insert(0, satellite_layer)
+
         return style_data
         
     except Exception as e:
@@ -90,7 +115,7 @@ async def get_default_style(
 @router.get("/search")
 async def search_endpoint(
     q: str,
-    lat: float | None = Query(None, description="عرض جغرافیایی مرکز نقشه"),
+    lat: float | None = Query(None, description="عرض جغایی مرکز نقشه"),
     lon: float | None = Query(None, description="طول جغرافیایی مرکز نقشه")
 ):
     return await search(q, user_lat=lat, user_lon=lon)
@@ -131,18 +156,19 @@ async def public_publish_endpoint(payload: PublicPublishRequest):
         
         cursor.execute(
             """
-            INSERT INTO stores (id, name, lat, lon, address, phone) 
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO stores (id, name, lat, lon, address, phone, is_warehouse) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) 
             DO UPDATE SET 
                 name = EXCLUDED.name, 
                 lat = EXCLUDED.lat, 
                 lon = EXCLUDED.lon, 
                 address = EXCLUDED.address, 
-                phone = EXCLUDED.phone
-            RETURNING id, name, lat, lon, address, phone;
+                phone = EXCLUDED.phone,
+                is_warehouse = EXCLUDED.is_warehouse
+            RETURNING id, name, lat, lon, address, phone, is_warehouse;
             """,
-            (str(payload.id), payload.name, payload.lat, payload.lon, payload.address, payload.phone)
+            (str(payload.id), payload.name, payload.lat, payload.lon, payload.address, payload.phone, payload.is_warehouse)
         )
         updated_store = cursor.fetchone()
         conn.commit()
@@ -156,7 +182,8 @@ async def public_publish_endpoint(payload: PublicPublishRequest):
                 "id": updated_store[0],
                 "name": updated_store[1],
                 "lat": updated_store[2],
-                "lon": updated_store[3]
+                "lon": updated_store[3],
+                "is_warehouse": updated_store[6]
             }
         }
     except Exception as e:
@@ -308,3 +335,119 @@ async def get_traffic_zones_geojson():
             status_code=500, 
             detail=f"Database error while generating GeoJSON: {str(e)}"
         )
+
+
+# =====================================================================
+# 🔍 موتور سرچ فضایی لوکیشن‌ها بر اساس محصولات همگام‌سازی شده محلی
+# =====================================================================
+@router.get("/search/by-product", summary="موتور فیلتر و جستجوی فضایی لوکیشن‌ها بر اساس موجودی محصولات دیتابیس محلی")
+def search_by_product(
+    q: str | None = Query(None, description="نام یا بخشی از نام محصول (Fuzzy Match)"),
+    product_id: str | None = Query(None, description="شناسه یکتای دقیق محصول"),
+    lat: float | None = Query(None, description="عرض جغرافیایی کاربر (جهت مرتب‌سازی بر اساس نزدیکی)"),
+    lon: float | None = Query(None, description="طول جغرافیایی کاربر (جهت مرتب‌سازی بر اساس نزدیکی)"),
+    db: Session = Depends(get_db)
+):
+    if not q and not product_id:
+        raise HTTPException(status_code=400, detail="ارسال حداقل یکی از پارامترهای q یا product_id الزامی است.")
+
+    base_sql = """
+        SELECT 
+            s.id AS store_id,
+            s.name AS store_name,
+            s.lat AS store_lat,
+            s.lon AS store_lon,
+            s.address AS store_address,
+            s.phone AS store_phone,
+            s.is_warehouse AS store_is_warehouse,
+            w.id AS warehouse_id,
+            w.name AS warehouse_name,
+            p.id AS product_id,
+            p.name AS product_name,
+            i.quantity,
+            CASE 
+                WHEN CAST(:lat AS DOUBLE PRECISION) IS NOT NULL AND CAST(:lon AS DOUBLE PRECISION) IS NOT NULL THEN
+                    ST_Distance(
+                        ST_Transform(ST_SetSRID(ST_MakePoint(s.lon, s.lat), 4326), 3857),
+                        ST_Transform(ST_SetSRID(ST_MakePoint(CAST(:lon AS DOUBLE PRECISION), CAST(:lat AS DOUBLE PRECISION)), 4326), 3857)
+                    )
+                ELSE 0.0
+            END AS distance_meters
+        FROM inventories i
+        JOIN products p ON i.product_id = p.id
+        JOIN warehouses w ON i.warehouse_id = w.id
+        JOIN stores s ON w.store_id = s.id
+        WHERE i.quantity > 0
+    """
+    
+    params = {"lat": lat, "lon": lon}
+    conditions = []
+
+    if product_id:
+        conditions.append("p.id = :product_id")
+        params["product_id"] = product_id
+    elif q:
+        conditions.append("p.name = :q")
+        params["q"] = q
+
+    if conditions:
+        base_sql += " AND " + " AND ".join(conditions)
+
+    if lat is not None and lon is not None:
+        base_sql += " ORDER BY distance_meters ASC;"
+    else:
+        base_sql += " ORDER BY p.name ASC;"
+
+    try:
+        results = db.execute(text(base_sql), params).mappings().all()
+        
+        formatted_results = []
+        for r in results:
+            formatted_results.append({
+                "product": {
+                    "id": r["product_id"],
+                    "name": r["product_name"],
+                    "quantity": r["quantity"]
+                },
+                "store": {
+                    "id": r["store_id"],
+                    "name": r["store_name"],
+                    "lat": r["store_lat"],
+                    "lon": r["store_lon"],
+                    "address": r["store_address"],
+                    "phone": r["store_phone"],
+                    "is_warehouse": r["store_is_warehouse"]
+                },
+                "warehouse": {
+                    "id": r["warehouse_id"],
+                    "name": r["warehouse_name"]
+                },
+                "distance_meters": round(r["distance_meters"], 1) if r["distance_meters"] else None
+            })
+        return formatted_results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error during product search: {str(e)}")
+
+
+# =====================================================================
+# 📦 اندپوینت: دریافت کاتالوگ تمام قطعات دارای موجودی فعال روی نقشه
+# =====================================================================
+@router.get("/products", summary="دریافت کاتالوگ تمام قطعات فعال و موجود در سیستم نقشه")
+def get_active_products(db: Session = Depends(get_db)):
+    """
+    دریافت کاتالوگ تمام قطعاتی که در حال حاضر حداقل در یکی از انبارها موجودی فعال (بیشتر از صفر) دارند.
+    این لیست به صورت گروهی بر اساس نام محصول ادغام می‌شود تا نام هر قطعه دقیقاً یک‌بار رندر شود.
+    """
+    sql = """
+        SELECT p.name, MIN(p.id) AS id
+        FROM products p
+        JOIN inventories i ON p.id = i.product_id
+        WHERE i.quantity > 0
+        GROUP BY p.name
+        ORDER BY p.name ASC;
+    """
+    try:
+        results = db.execute(text(sql)).mappings().all()
+        return [{"id": r["id"], "name": r["name"]} for r in results]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")

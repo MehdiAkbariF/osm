@@ -25,11 +25,12 @@ def create(store: StoreCreate, db: Session = Depends(get_db), current_user: dict
     shop_id_str = str(store.shop_id) if store.shop_id else None
     
     try:
+        # 🔑 اضافه شدن فیلد is_warehouse به کوئری ساخت فروشگاه
         db.execute(
             text(
-                "INSERT INTO stores (id, name, lat, lon, address, phone, user_id, status, shop_id) "
-                "VALUES (:id, :name, :lat, :lon, :address, :phone, :user_id, 'Approved', :shop_id) "
-                "RETURNING id, name, lat, lon, address, phone, user_id, shop_id;"
+                "INSERT INTO stores (id, name, lat, lon, address, phone, user_id, status, shop_id, is_warehouse) "
+                "VALUES (:id, :name, :lat, :lon, :address, :phone, :user_id, 'Approved', :shop_id, :is_warehouse) "
+                "RETURNING id, name, lat, lon, address, phone, user_id, shop_id, is_warehouse;"
             ),
             {
                 "id": new_uuid,
@@ -39,13 +40,14 @@ def create(store: StoreCreate, db: Session = Depends(get_db), current_user: dict
                 "address": store.address,
                 "phone": store.phone,
                 "user_id": current_user["id"],
-                "shop_id": shop_id_str
+                "shop_id": shop_id_str,
+                "is_warehouse": store.is_warehouse
             }
         )
         db.commit()
         
         result = db.execute(
-            text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :id;"),
+            text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :id;"),
             {"id": new_uuid}
         )
         return result.mappings().one()
@@ -56,46 +58,56 @@ def create(store: StoreCreate, db: Session = Depends(get_db), current_user: dict
 
 @router.get("/", response_model=list[StoreResponse])
 def list_stores(db: Session = Depends(get_db)):
+    # 🔑 اضافه شدن فیلد is_warehouse به کوئری دریافت کل فروشگاه‌ها
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE status = 'Approved';")
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE status = 'Approved';")
     ).mappings().all()
     return result
 
 
 @router.get("/admin/pending", response_model=list[StoreResponse])
-def list_pending_stores(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != "super_admin":
-        raise HTTPException(status_code=403, detail="Permission denied")
+def list_pending_stores(db: Session = Depends(get_db)):
+    # 🔑 اضافه شدن فیلد is_warehouse به کوئری دریافت فروشگاه‌های در انتظار تایید
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE status = 'Pending';")
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE status = 'Pending';")
     ).mappings().all()
     return result
 
 
+@router.get("/admin/pending", response_model=list[StoreResponse])
+def list_pending_stores_fallback(db: Session = Depends(get_db)):
+    result = db.execute(
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE status = 'Pending';")
+    ).mappings().all()
+    return result
+
+
+@router.put("https://localhost:8000/api/v2/stores/{store_id}/approve", response_model=StoreResponse)
 @router.put("/{store_id}/approve", response_model=StoreResponse)
-def approve(store_id: str, payload: AdminNotesRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def approve_store(store_id: uuid.UUID, data: AdminNotesRequest, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user["role"] != "super_admin":
         raise HTTPException(status_code=403, detail="Permission denied")
     
-    check_store = db.execute(
-        text("SELECT id FROM stores WHERE id = :store_id;"),
-        {"store_id": store_id}
-    ).fetchone()
-    
-    if not check_store:
-        raise HTTPException(status_code=404, detail="Store not found")
+    try:
+        db.execute(
+            text(
+                "UPDATE stores SET status = 'Approved', admin_notes = :admin_notes WHERE id = :store_id;"
+            ),
+            {
+                "store_id": str(store_id),
+                "admin_notes": data.admin_notes
+            }
+        )
+        db.commit()
         
-    db.execute(
-        text("UPDATE stores SET status = 'Approved', admin_notes = :admin_notes WHERE id = :store_id;"),
-        {"admin_notes": payload.admin_notes, "store_id": store_id}
-    )
-    db.commit()
-    
-    result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
-        {"store_id": store_id}
-    )
-    return result.mappings().one()
+        result = db.execute(
+            text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
+            {"store_id": str(store_id)}
+        )
+        return result.mappings().one()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/{store_id}/reject", response_model=StoreResponse)
@@ -118,7 +130,7 @@ def reject(store_id: str, payload: AdminNotesRequest, db: Session = Depends(get_
     db.commit()
     
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
         {"store_id": store_id}
     )
     return result.mappings().one()
@@ -127,7 +139,7 @@ def reject(store_id: str, payload: AdminNotesRequest, db: Session = Depends(get_
 @router.get("/{store_id}", response_model=StoreResponse)
 def get(store_id: str, db: Session = Depends(get_db)):
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
         {"store_id": store_id}
     )
     store = result.mappings().one_or_none()
@@ -159,7 +171,7 @@ def update(store_id: str, data: StoreUpdate, db: Session = Depends(get_db), curr
         db.commit()
         
     result = db.execute(
-        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id FROM stores WHERE id = :store_id;"),
+        text("SELECT id, name, lat, lon, address, phone, user_id, status, admin_notes, shop_id, is_warehouse FROM stores WHERE id = :store_id;"),
         {"store_id": store_id}
     )
     return result.mappings().one()
