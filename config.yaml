@@ -1,19 +1,83 @@
+# C:\Users\Raven\OSM\config.yaml
 
 postgres:
   connection_string: 'postgres://map_admin:map_secure_pass@localhost:5433/iran_map'
-
+  pool_size: 20
+  timeout: 30
 
 fonts:
   - 'fonts'
 
-
-
-
-
-
-
 cache_size_mb: 2048
-
-
-
 preferred_encoding: gzip
+
+# ===== تنظیمات مهم برای کیفیت و زوم =====
+tables:
+  - id: planet_osm_point
+    schema: public
+    table: planet_osm_point
+    geometry_column: way
+    geometry_type: POINT
+    srid: 3857
+    minzoom: 0
+    maxzoom: 22              # ← زوم تا 22
+    tile_scale: 2            # ← کیفیت بالاتر
+    properties:
+      - name
+      - place
+      - amenity
+      - shop
+      - tourism
+      - highway
+      - ele
+
+  - id: planet_osm_line
+    schema: public
+    table: planet_osm_line
+    geometry_column: way
+    geometry_type: LINESTRING
+    srid: 3857
+    minzoom: 0
+    maxzoom: 22              # ← زوم تا 22
+    tile_scale: 2            # ← کیفیت بالاتر
+    properties:
+      - name
+      - highway
+      - ref
+      - bridge
+      - tunnel
+      - waterway
+
+  - id: planet_osm_polygon
+    schema: public
+    table: planet_osm_polygon
+    geometry_column: way
+    geometry_type: POLYGON
+    srid: 3857
+    minzoom: 0
+    maxzoom: 22              # ← زوم تا 22
+    tile_scale: 2            # ← کیفیت بالاتر
+    properties:
+      - name
+      - place
+      - landuse
+      - building
+      - leisure
+      - natural
+      - water
+
+  - id: planet_osm_roads
+    schema: public
+    table: planet_osm_roads
+    geometry_column: way
+    geometry_type: LINESTRING
+    srid: 3857
+    minzoom: 0
+    maxzoom: 22              # ← زوم تا 22
+    tile_scale: 2            # ← کیفیت بالاتر
+    properties:
+      - name
+      - highway
+      - ref
+      - bridge
+      - tunnel

@@ -1,0 +1,67 @@
+[
+  {
+    "id": "water-ocean",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"], ["==", "waterway", "riverbank"]],
+    "minzoom": 0,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": {
+        "base": 1,
+        "stops": [
+          [0, "#aad3df"],
+          [10, "#7ba8b8"]
+        ]
+      },
+      "fill-opacity": 0.9
+    }
+  },
+  {
+    "id": "water-rivers",
+    "type": "line",
+    "source": "osm",
+    "source-layer": "planet_osm_line",
+    "filter": ["any", ["==", "waterway", "river"], ["==", "waterway", "stream"], ["==", "waterway", "canal"]],
+    "minzoom": 8,
+    "maxzoom": 22,
+    "paint": {
+      "line-color": "#7ba8b8",
+      "line-width": {
+        "base": 1.5,
+        "stops": [
+          [8, 0.5],
+          [12, 1],
+          [15, 3],
+          [18, 6],
+          [20, 10]
+        ]
+      },
+      "line-opacity": 0.8
+    }
+  },
+  {
+    "id": "water-rivers-casing",
+    "type": "line",
+    "source": "osm",
+    "source-layer": "planet_osm_line",
+    "filter": ["==", "waterway", "river"],
+    "minzoom": 10,
+    "maxzoom": 22,
+    "paint": {
+      "line-color": "#ffffff",
+      "line-width": {
+        "base": 1.5,
+        "stops": [
+          [10, 1.5],
+          [12, 2.5],
+          [15, 5],
+          [18, 8],
+          [20, 12]
+        ]
+      },
+      "line-opacity": 0.3
+    }
+  }
+]

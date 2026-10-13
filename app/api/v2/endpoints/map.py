@@ -451,3 +451,55 @@ def get_active_products(db: Session = Depends(get_db)):
         return [{"id": r["id"], "name": r["name"]} for r in results]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+    # app/api/v2/endpoints/map.py
+
+@router.get("/styles/hybrid")
+async def get_hybrid_style(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """
+    دریافت استایل ترکیبی حرفه‌ای (تلفیق openstreetmap-carto + اختصاصی)
+    """
+    style_path = os.path.join(os.getcwd(), "styles", "default-hybrid.json")
+    
+    if not os.path.exists(style_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Style file not found at: {style_path}"
+        )
+    
+    try:
+        # دریافت تنظیمات از دیتابیس
+        settings_record = get_active_settings(db)
+        
+        # خواندن فایل استایل
+        with open(style_path, "r", encoding="utf-8") as f:
+            style_data = json.load(f)
+        
+        # جایگزینی متغیرهای پویا
+        bg_color = getattr(settings_record, "background_color", "#f5f0e8") or "#f5f0e8"
+        
+        # به‌روزرسانی رنگ پس‌زمینه
+        for layer in style_data.get("layers", []):
+            if layer.get("id") == "background":
+                layer["paint"]["background-color"] = bg_color
+        
+        # جایگزینی URL ها با پورت صحیح
+        base_url = f"{request.url.scheme}://{request.url.netloc}/api/v2/map"
+        for source_name, source in style_data.get("sources", {}).items():
+            if source.get("type") == "vector" and "tiles" in source:
+                source["tiles"] = [
+                    tile.replace("http://localhost:8001/api/v2/map/tiles/{z}/{x}/{y}", 
+                                f"{base_url}/tiles/{{z}}/{{x}}/{{y}}")
+                    for tile in source["tiles"]
+                ]
+        
+        return style_data
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error loading hybrid style: {str(e)}"
+        )

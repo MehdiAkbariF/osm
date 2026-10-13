@@ -1,0 +1,105 @@
+[
+  {
+    "id": "landcover-forest",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["any", ["==", "landuse", "forest"], ["==", "natural", "wood"]],
+    "minzoom": 8,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": {
+        "stops": [
+          [8, "#d4e0c0"],
+          [12, "#c8d8b0"],
+          [16, "#b8c8a0"]
+        ]
+      },
+      "fill-opacity": 0.9
+    }
+  },
+  {
+    "id": "landcover-farmland",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["==", "landuse", "farmland"],
+    "minzoom": 10,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": "#e8edd0",
+      "fill-opacity": 0.8
+    }
+  },
+  {
+    "id": "landcover-park",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["any", ["==", "leisure", "park"], ["==", "leisure", "garden"], ["==", "landuse", "grass"]],
+    "minzoom": 10,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": "#d0e4c0",
+      "fill-opacity": 0.8
+    }
+  },
+  {
+    "id": "landcover-residential",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["==", "landuse", "residential"],
+    "minzoom": 10,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": {
+        "stops": [
+          [10, "#f0ebe3"],
+          [14, "#e8e0d8"],
+          [18, "#e0d8d0"]
+        ]
+      },
+      "fill-opacity": 0.7
+    }
+  },
+  {
+    "id": "landcover-industrial",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["==", "landuse", "industrial"],
+    "minzoom": 12,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": "#d5d0c8",
+      "fill-opacity": 0.7
+    }
+  },
+  {
+    "id": "landcover-commercial",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["==", "landuse", "commercial"],
+    "minzoom": 12,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": "#e8e0d8",
+      "fill-opacity": 0.7
+    }
+  },
+  {
+    "id": "landcover-cemetery",
+    "type": "fill",
+    "source": "osm",
+    "source-layer": "planet_osm_polygon",
+    "filter": ["any", ["==", "landuse", "cemetery"], ["==", "amenity", "grave_yard"]],
+    "minzoom": 12,
+    "maxzoom": 22,
+    "paint": {
+      "fill-color": "#d8d8d0",
+      "fill-opacity": 0.5
+    }
+  }
+]

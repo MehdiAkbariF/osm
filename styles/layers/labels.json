@@ -1,0 +1,160 @@
+[
+  {
+    "id": "label-country",
+    "type": "symbol",
+    "source": "osm",
+    "source-layer": "planet_osm_point",
+    "filter": ["==", "place", "country"],
+    "minzoom": 3,
+    "maxzoom": 6,
+    "layout": {
+      "text-field": "{name}",
+      "text-font": ["Vazirmatn Thin", "Arial Regular"],
+      "text-size": {
+        "stops": [
+          [3, 10],
+          [5, 14],
+          [6, 18]
+        ]
+      },
+      "text-transform": "uppercase",
+      "text-letter-spacing": 0.2
+    },
+    "paint": {
+      "text-color": "#424242",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 3
+    }
+  },
+  {
+    "id": "label-province",
+    "type": "symbol",
+    "source": "osm",
+    "source-layer": "planet_osm_point",
+    "filter": ["==", "place", "state"],
+    "minzoom": 4,
+    "maxzoom": 8,
+    "layout": {
+      "text-field": "{name}",
+      "text-font": ["Vazirmatn Thin", "Arial Regular"],
+      "text-size": {
+        "stops": [
+          [4, 10],
+          [6, 12],
+          [8, 14]
+        ]
+      }
+    },
+    "paint": {
+      "text-color": "#5a5a5a",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 2
+    }
+  },
+  {
+    "id": "label-city",
+    "type": "symbol",
+    "source": "osm",
+    "source-layer": "planet_osm_point",
+    "filter": ["any", ["==", "place", "city"], ["==", "place", "town"]],
+    "minzoom": 6,
+    "maxzoom": 12,
+    "layout": {
+      "text-field": "{name}",
+      "text-font": ["Vazirmatn Thin", "Arial Regular"],
+      "text-size": {
+        "stops": [
+          [6, 8],
+          [8, 10],
+          [10, 12],
+          [12, 14]
+        ]
+      }
+    },
+    "paint": {
+      "text-color": "#333333",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 2
+    }
+  },
+  {
+    "id": "label-suburb",
+    "type": "symbol",
+    "source": "osm",
+    "source-layer": "planet_osm_point",
+    "filter": ["any", ["==", "place", "suburb"], ["==", "place", "neighbourhood"]],
+    "minzoom": 10,
+    "maxzoom": 18,
+    "layout": {
+      "text-field": "{name}",
+      "text-font": ["Vazirmatn Thin", "Arial Regular"],
+      "text-size": {
+        "stops": [
+          [10, 7],
+          [12, 9],
+          [14, 10],
+          [16, 12]
+        ]
+      }
+    },
+    "paint": {
+      "text-color": "#666666",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 2
+    }
+  },
+  {
+    "id": "label-road",
+    "type": "symbol",
+    "source": "osm",
+    "source-layer": "planet_osm_line",
+    "filter": ["all", ["has", "name"], ["has", "highway"]],
+    "minzoom": 12,
+    "maxzoom": 22,
+    "layout": {
+      "text-field": "{name}",
+      "text-font": ["Vazirmatn Thin", "Arial Regular"],
+      "text-size": {
+        "stops": [
+          [12, 8],
+          [16, 10],
+          [20, 12]
+        ]
+      },
+      "symbol-placement": "line",
+      "text-rotation-alignment": "map",
+      "text-spacing": 300,
+      "text-max-angle": 25
+    },
+    "paint": {
+      "text-color": "#2c2c2c",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 2
+    }
+  },
+  {
+    "id": "label-village",
+    "type": "symbol",
+    "source": "osm",
+    "source-layer": "planet_osm_point",
+    "filter": ["any", ["==", "place", "village"], ["==", "place", "hamlet"]],
+    "minzoom": 12,
+    "maxzoom": 18,
+    "layout": {
+      "text-field": "{name}",
+      "text-font": ["Vazirmatn Thin", "Arial Regular"],
+      "text-size": {
+        "stops": [
+          [12, 8],
+          [14, 9],
+          [16, 10]
+        ]
+      }
+    },
+    "paint": {
+      "text-color": "#888888",
+      "text-halo-color": "#ffffff",
+      "text-halo-width": 2
+    }
+  }
+]

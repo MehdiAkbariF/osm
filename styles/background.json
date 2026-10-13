@@ -1,0 +1,7 @@
+{
+  "id": "background",
+  "type": "background",
+  "paint": {
+    "background-color": "#f5f0e8"
+  }
+}

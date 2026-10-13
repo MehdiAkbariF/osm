@@ -1,19 +1,11 @@
 {
   "version": 8,
-  "name": "Standard Cartography Iran Style",
-  "glyphs": "http://localhost:3000/font/{fontstack}/{range}",
+  "name": "Iran Professional Map - Yadakchi Edition",
+  "glyphs": "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
   "sources": {
-    "iran_polygons": {
+    "osm": {
       "type": "vector",
-      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
-    },
-    "iran_lines": {
-      "type": "vector",
-      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
-    },
-    "iran_points": {
-      "type": "vector",
-      "tiles": ["http://localhost:8000/api/v2/map/tiles/{z}/{x}/{y}"]
+      "tiles": ["http://localhost:8001/api/v2/map/tiles/{z}/{x}/{y}"]
     }
   },
   "layers": [
@@ -25,280 +17,539 @@
       }
     },
     {
-      "id": "residential-areas",
+      "id": "landcover-forest",
       "type": "fill",
-      "source": "iran_polygons",
+      "source": "osm",
+      "source-layer": "planet_osm_polygon",
+      "filter": ["any", ["==", "landuse", "forest"], ["==", "natural", "wood"]],
+      "minzoom": 6,
+      "maxzoom": 22,
+      "paint": {
+        "fill-color": "#c5d7b5",
+        "fill-opacity": 0.75
+      }
+    },
+    {
+      "id": "landcover-farmland",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "planet_osm_polygon",
+      "filter": ["==", "landuse", "farmland"],
+      "minzoom": 8,
+      "maxzoom": 22,
+      "paint": {
+        "fill-color": "#e6ecce",
+        "fill-opacity": 0.6
+      }
+    },
+    {
+      "id": "landcover-park",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "planet_osm_polygon",
+      "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "grass"]],
+      "minzoom": 8,
+      "maxzoom": 22,
+      "paint": {
+        "fill-color": "{{PARK_COLOR}}",
+        "fill-opacity": 0.75
+      }
+    },
+    {
+      "id": "landcover-residential",
+      "type": "fill",
+      "source": "osm",
       "source-layer": "planet_osm_polygon",
       "filter": ["==", "landuse", "residential"],
+      "minzoom": 8,
+      "maxzoom": 22,
       "paint": {
         "fill-color": "{{RESIDENTIAL_COLOR}}",
-        "fill-opacity": 0.9
+        "fill-opacity": 0.5
       }
     },
     {
-      "id": "parks-forests",
+      "id": "landcover-industrial",
       "type": "fill",
-      "source": "iran_polygons",
+      "source": "osm",
       "source-layer": "planet_osm_polygon",
-      "filter": ["any", ["==", "leisure", "park"], ["==", "landuse", "forest"], ["==", "landuse", "grass"]],
+      "filter": ["==", "landuse", "industrial"],
+      "minzoom": 10,
+      "maxzoom": 22,
       "paint": {
-        "fill-color": "{{PARK_COLOR}}"
+        "fill-color": "#e6e3df",
+        "fill-opacity": 0.5
       }
     },
     {
-      "id": "water-bodies",
+      "id": "landcover-commercial",
       "type": "fill",
-      "source": "iran_polygons",
+      "source": "osm",
+      "source-layer": "planet_osm_polygon",
+      "filter": ["==", "landuse", "commercial"],
+      "minzoom": 10,
+      "maxzoom": 22,
+      "paint": {
+        "fill-color": "#eddcd4",
+        "fill-opacity": 0.5
+      }
+    },
+    {
+      "id": "water-ocean",
+      "type": "fill",
+      "source": "osm",
       "source-layer": "planet_osm_polygon",
       "filter": ["any", ["==", "natural", "water"], ["==", "landuse", "reservoir"]],
+      "minzoom": 0,
+      "maxzoom": 22,
       "paint": {
-        "fill-color": "{{WATER_COLOR}}"
+        "fill-color": "{{WATER_COLOR}}",
+        "fill-opacity": 0.95
       }
     },
     {
-      "id": "buildings",
-      "type": "fill",
-      "source": "iran_polygons",
-      "source-layer": "planet_osm_polygon",
-      "minzoom": 13,
-      "filter": ["has", "building"],
-      "paint": {
-        "fill-color": "{{BUILDING_COLOR}}",
-        "fill-opacity": 0.85
-      }
-    },
-    {
-      "id": "waterways",
+      "id": "water-rivers",
       "type": "line",
-      "source": "iran_lines",
+      "source": "osm",
       "source-layer": "planet_osm_line",
-      "filter": ["has", "waterway"],
+      "filter": ["any", ["==", "waterway", "river"], ["==", "waterway", "stream"], ["==", "waterway", "canal"]],
+      "minzoom": 8,
+      "maxzoom": 22,
       "paint": {
         "line-color": "{{WATER_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
+          8, 0.5,
           11, 1,
-          15, 3
-        ]
+          15, 3,
+          18, 6,
+          20, 10
+        ],
+        "line-opacity": 0.8
       }
     },
     {
-      "id": "motorway-casing",
+      "id": "buildings",
+      "type": "fill",
+      "source": "osm",
+      "source-layer": "planet_osm_polygon",
+      "filter": ["has", "building"],
+      "minzoom": 14,
+      "maxzoom": 16,
+      "paint": {
+        "fill-color": "{{BUILDING_COLOR}}",
+        "fill-outline-color": "#b8b0a8",
+        "fill-opacity": 0.8
+      }
+    },
+    {
+      "id": "buildings-3d",
+      "type": "fill-extrusion",
+      "source": "osm",
+      "source-layer": "planet_osm_polygon",
+      "filter": ["has", "building"],
+      "minzoom": 16,
+      "maxzoom": 22,
+      "paint": {
+        "fill-extrusion-color": "{{BUILDING_COLOR}}",
+        "fill-extrusion-height": ["*", 2.5, ["coalesce", ["get", "building:levels"], 3]],
+        "fill-extrusion-base": 0,
+        "fill-extrusion-opacity": 0.85,
+        "fill-extrusion-vertical-gradient": true
+      }
+    },
+    {
+      "id": "road-motorway-casing",
       "type": "line",
-      "source": "iran_lines",
+      "source": "osm",
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
+      "minzoom": 6,
+      "maxzoom": 22,
       "paint": {
-        "line-color": "#e07a1b",
+        "line-color": "#d06b12",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          10, 2,
-          14, 5.5,
-          18, 14
-        ]
+          6, 1.2,
+          10, 2.5,
+          14, 6.5,
+          18, 16,
+          20, 22,
+          22, 30
+        ],
+        "line-opacity": 0.95
       }
     },
     {
-      "id": "motorway-core",
+      "id": "road-motorway-core",
       "type": "line",
-      "source": "iran_lines",
+      "source": "osm",
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "motorway"], ["==", "highway", "trunk"]],
+      "minzoom": 6,
+      "maxzoom": 22,
       "paint": {
         "line-color": "{{PRIMARY_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          10, 1,
-          14, 3.5,
-          18, 10
+          6, 0.6,
+          10, 1.2,
+          14, 4.0,
+          18, 11,
+          20, 15,
+          22, 21
         ]
       }
     },
     {
-      "id": "primary-casing",
+      "id": "road-primary-casing",
       "type": "line",
-      "source": "iran_lines",
+      "source": "osm",
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
+      "minzoom": 8,
+      "maxzoom": 22,
       "paint": {
-        "line-color": "#d6a100",
+        "line-color": "#b88a00",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          10, 1.5,
-          14, 4.5,
-          18, 11
+          8, 1.2,
+          10, 1.8,
+          14, 5.0,
+          18, 12,
+          20, 17,
+          22, 23
         ]
       }
     },
     {
-      "id": "primary-core",
+      "id": "road-primary-core",
       "type": "line",
-      "source": "iran_lines",
+      "source": "osm",
       "source-layer": "planet_osm_line",
       "filter": ["any", ["==", "highway", "primary"], ["==", "highway", "secondary"]],
+      "minzoom": 8,
+      "maxzoom": 22,
       "paint": {
         "line-color": "{{SECONDARY_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          10, 0.8,
-          14, 2.5,
-          18, 8
+          8, 0.5,
+          10, 0.9,
+          14, 2.8,
+          18, 9,
+          20, 13,
+          22, 17
         ]
       }
     },
     {
-      "id": "minor-roads",
+      "id": "road-tertiary",
       "type": "line",
-      "source": "iran_lines",
+      "source": "osm",
       "source-layer": "planet_osm_line",
-      "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "tertiary"], ["==", "highway", "service"]],
+      "filter": ["==", "highway", "tertiary"],
+      "minzoom": 10,
+      "maxzoom": 22,
+      "paint": {
+        "line-color": "#ffe0b2",
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10, 0.6,
+          14, 1.8,
+          18, 6,
+          20, 9,
+          22, 13
+        ]
+      }
+    },
+    {
+      "id": "road-residential",
+      "type": "line",
+      "source": "osm",
+      "source-layer": "planet_osm_line",
+      "filter": ["any", ["==", "highway", "residential"], ["==", "highway", "service"], ["==", "highway", "living_street"]],
+      "minzoom": 12,
+      "maxzoom": 22,
       "paint": {
         "line-color": "{{MINOR_ROAD_COLOR}}",
         "line-width": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          11, 0.5,
-          14, 1.5,
-          18, 5
-        ]
-      }
-    },
-    {
-      "id": "province-labels",
-      "type": "symbol",
-      "source": "iran_points",
-      "source-layer": "planet_osm_point",
-      "minzoom": 4,
-      "maxzoom": 8,
-      "filter": ["==", "place", "state"],
-      "layout": {
-        "text-field": "{name}",
-        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          4, ["*", 11, "{{LABEL_FONT_SIZE}}"],
-          8, ["*", 15, "{{LABEL_FONT_SIZE}}"]
-        ]
-      },
-      "paint": {
-        "text-color": "#424242",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 2
-      }
-    },
-    {
-      "id": "city-labels",
-      "type": "symbol",
-      "source": "iran_points",
-      "source-layer": "planet_osm_point",
-      "minzoom": 7,
-      "maxzoom": 11,
-      "filter": ["any", ["==", "place", "city"], ["==", "place", "town"]],
-      "layout": {
-        "text-field": "{name}",
-        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          7, ["*", 10, "{{LABEL_FONT_SIZE}}"],
-          11, ["*", 13, "{{LABEL_FONT_SIZE}}"]
-        ]
-      },
-      "paint": {
-        "text-color": "#212121",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 2
-      }
-    },
-    {
-      "id": "neighborhood-labels",
-      "type": "symbol",
-      "source": "iran_points",
-      "source-layer": "planet_osm_point",
-      "minzoom": 11,
-      "maxzoom": 14,
-      "filter": ["any", ["==", "place", "suburb"], ["==", "place", "neighbourhood"]],
-      "layout": {
-        "text-field": "{name}",
-        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
-        "text-size": [
-          "interpolate",
-          ["linear"],
-          ["zoom"],
-          11, ["*", 10, "{{LABEL_FONT_SIZE}}"],
-          14, ["*", 12, "{{LABEL_FONT_SIZE}}"]
+          12, 0.6,
+          14, 1.2,
+          18, 4.5,
+          20, 7,
+          22, 11
         ],
-        "symbol-placement": "point"
-      },
-      "paint": {
-        "text-color": "#616161",
-        "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5
+        "line-opacity": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, 0.6,
+          16, 0.85,
+          20, 1.0
+        ]
       }
     },
     {
-      "id": "road-labels",
-      "type": "symbol",
-      "source": "iran_lines",
+      "id": "road-unclassified",
+      "type": "line",
+      "source": "osm",
       "source-layer": "planet_osm_line",
-      "minzoom": 12,
-      "filter": ["all", ["has", "name"], ["has", "highway"]],
+      "filter": ["==", "highway", "unclassified"],
+      "minzoom": 14,
+      "maxzoom": 22,
+      "paint": {
+        "line-color": "#ebe7e0",
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          14, 0.4,
+          18, 2.2,
+          22, 6.5
+        ]
+      }
+    },
+    {
+      "id": "road-track",
+      "type": "line",
+      "source": "osm",
+      "source-layer": "planet_osm_line",
+      "filter": ["==", "highway", "track"],
+      "minzoom": 16,
+      "maxzoom": 22,
+      "paint": {
+        "line-color": "#e3d9d0",
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          16, 0.4,
+          20, 1.8
+        ],
+        "line-dasharray": [3, 2]
+      }
+    },
+    {
+      "id": "label-country",
+      "type": "symbol",
+      "source": "osm",
+      "source-layer": "planet_osm_point",
+      "filter": ["==", "place", "country"],
+      "minzoom": 2,
+      "maxzoom": 6,
       "layout": {
         "text-field": "{name}",
-        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}"],
         "text-size": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          12, ["*", 9, "{{LABEL_FONT_SIZE}}"],
-          16, ["*", 12, "{{LABEL_FONT_SIZE}}"]
+          2, ["*", 8, "{{LABEL_FONT_SIZE}}"],
+          4, ["*", 12, "{{LABEL_FONT_SIZE}}"],
+          6, ["*", 16, "{{LABEL_FONT_SIZE}}"]
         ],
-        "symbol-placement": "line"
+        "text-transform": "uppercase",
+        "text-letter-spacing": 0.15,
+        "text-max-width": 8
       },
       "paint": {
         "text-color": "#2c2c2c",
         "text-halo-color": "#ffffff",
-        "text-halo-width": 1.5
+        "text-halo-width": 2.5,
+        "text-halo-blur": 1.0
       }
     },
     {
-      "id": "poi-labels",
+      "id": "label-province",
       "type": "symbol",
-      "source": "iran_points",
+      "source": "osm",
       "source-layer": "planet_osm_point",
-      "minzoom": 14,
-      "filter": ["all", ["has", "name"], ["!", ["has", "place"]]],
+      "filter": ["==", "place", "state"],
+      "minzoom": 4,
+      "maxzoom": 9,
       "layout": {
         "text-field": "{name}",
-        "text-font": ["{{FONT_FAMILY}}", "Arial Regular"],
+        "text-font": ["{{FONT_FAMILY}}"],
         "text-size": [
           "interpolate",
           ["linear"],
           ["zoom"],
-          14, ["*", 9, "{{LABEL_FONT_SIZE}}"],
-          17, ["*", 12, "{{LABEL_FONT_SIZE}}"]
+          4, ["*", 8, "{{LABEL_FONT_SIZE}}"],
+          6, ["*", 11, "{{LABEL_FONT_SIZE}}"],
+          8, ["*", 14, "{{LABEL_FONT_SIZE}}"]
         ],
-        "symbol-placement": "point",
-        "text-padding": 10
+        "text-max-width": 7
       },
       "paint": {
-        "text-color": "#d32f2f",
+        "text-color": "#4a4a4a",
         "text-halo-color": "#ffffff",
-        "text-halo-width": 2
+        "text-halo-width": 2.0,
+        "text-halo-blur": 0.8
+      }
+    },
+    {
+      "id": "label-city",
+      "type": "symbol",
+      "source": "osm",
+      "source-layer": "planet_osm_point",
+      "filter": ["any", ["==", "place", "city"], ["==", "place", "town"]],
+      "minzoom": 6,
+      "maxzoom": 13,
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["{{FONT_FAMILY}}"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          6, ["*", 7, "{{LABEL_FONT_SIZE}}"],
+          8, ["*", 9, "{{LABEL_FONT_SIZE}}"],
+          10, ["*", 11, "{{LABEL_FONT_SIZE}}"],
+          12, ["*", 13, "{{LABEL_FONT_SIZE}}"]
+        ],
+        "text-anchor": "center",
+        "text-max-width": 8
+      },
+      "paint": {
+        "text-color": "#1f1f1f",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2.0,
+        "text-halo-blur": 0.5
+      }
+    },
+    {
+      "id": "label-suburb",
+      "type": "symbol",
+      "source": "osm",
+      "source-layer": "planet_osm_point",
+      "filter": ["any", ["==", "place", "suburb"], ["==", "place", "neighbourhood"]],
+      "minzoom": 10,
+      "maxzoom": 18,
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["{{FONT_FAMILY}}"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          10, ["*", 6, "{{LABEL_FONT_SIZE}}"],
+          12, ["*", 8, "{{LABEL_FONT_SIZE}}"],
+          14, ["*", 9, "{{LABEL_FONT_SIZE}}"],
+          16, ["*", 10, "{{LABEL_FONT_SIZE}}"]
+        ],
+        "text-max-width": 6
+      },
+      "paint": {
+        "text-color": "#545454",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.5,
+        "text-halo-blur": 0.5
+      }
+    },
+    {
+      "id": "label-village",
+      "type": "symbol",
+      "source": "osm",
+      "source-layer": "planet_osm_point",
+      "filter": ["any", ["==", "place", "village"], ["==", "place", "hamlet"]],
+      "minzoom": 12,
+      "maxzoom": 18,
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["{{FONT_FAMILY}}"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, ["*", 7, "{{LABEL_FONT_SIZE}}"],
+          14, ["*", 8, "{{LABEL_FONT_SIZE}}"],
+          16, ["*", 9, "{{LABEL_FONT_SIZE}}"]
+        ],
+        "text-max-width": 6
+      },
+      "paint": {
+        "text-color": "#757575",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 1.8,
+        "text-halo-blur": 0.5
+      }
+    },
+    {
+      "id": "label-road",
+      "type": "symbol",
+      "source": "osm",
+      "source-layer": "planet_osm_line",
+      "filter": ["all", ["has", "name"], ["has", "highway"]],
+      "minzoom": 12,
+      "maxzoom": 22,
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["{{FONT_FAMILY}}"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, ["*", 7, "{{LABEL_FONT_SIZE}}"],
+          14, ["*", 8, "{{LABEL_FONT_SIZE}}"],
+          16, ["*", 9, "{{LABEL_FONT_SIZE}}"],
+          20, ["*", 11, "{{LABEL_FONT_SIZE}}"]
+        ],
+        "symbol-placement": "line",
+        "symbol-spacing": 400,
+        "text-rotation-alignment": "map",
+        "text-max-width": 8
+      },
+      "paint": {
+        "text-color": "#2c2c2c",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2.0,
+        "text-halo-blur": 0.5
+      }
+    },
+    {
+      "id": "label-poi",
+      "type": "symbol",
+      "source": "osm",
+      "source-layer": "planet_osm_point",
+      "filter": ["all", ["has", "name"], ["!", ["has", "place"]]],
+      "minzoom": 14,
+      "maxzoom": 22,
+      "layout": {
+        "text-field": "{name}",
+        "text-font": ["{{FONT_FAMILY}}"],
+        "text-size": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          14, ["*", 7.5, "{{LABEL_FONT_SIZE}}"],
+          17, ["*", 9, "{{LABEL_FONT_SIZE}}"],
+          20, ["*", 11, "{{LABEL_FONT_SIZE}}"]
+        ],
+        "symbol-placement": "point",
+        "text-padding": 12,
+        "text-max-width": 6
+      },
+      "paint": {
+        "text-color": "#b52626",
+        "text-halo-color": "#ffffff",
+        "text-halo-width": 2.0,
+        "text-halo-blur": 0.5
       }
     }
   ]
